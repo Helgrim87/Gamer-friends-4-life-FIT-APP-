@@ -180,3 +180,16 @@ window.addEventListener("DOMContentLoaded", () => {
     return Math.min(Math.floor(xp / 10), levelNames.length - 1);
   }
 });
+function updateUserLevel(username, xp) {
+  const level = getLevelFromXP(xp);
+  const levelName = levelNames[level] || "Ukjent";
+
+  firebase.database().ref("users/" + username).update({
+    level: level,
+    levelName: levelName
+  }).then(() => {
+    console.log(`Oppdaterte nivå for ${username} til ${level} (${levelName})`);
+  }).catch(err => {
+    console.error("Feil ved oppdatering av nivå:", err);
+  });
+}
