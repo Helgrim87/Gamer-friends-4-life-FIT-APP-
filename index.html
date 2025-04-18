@@ -1296,34 +1296,6 @@
             setTimeout(initializeApp, 0);
         });
 
-    </script>
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-
-<script>
-  // Firebase config
-  const firebaseConfig = {
-    apiKey: "AIzaSyDUC7mBCT4R_t3buPLDrDA-GQWGmYEyBnw",
-    authDomain: "gf4l-ca7e2.firebaseapp.com",
-    databaseURL: "https://gf4l-ca7e2-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "gf4l-ca7e2",
-    storageBucket: "gf4l-ca7e2.firebasestorage.app",
-    messagingSenderId: "893712610424",
-    appId: "1:893712610424:web:5b0db3683d1aff2667298d",
-    measurementId: "G-NHK1CH1DP6"
-  };
-
-// Init Firebase
-  firebase.initializeApp(firebaseConfig);
-
-  // Autentisering
-  firebase.auth().onAuthStateChanged(user => {
-    console.log("Bruker status:", user ? "Innlogget" : "Ikke innlogget");
-  });
-</script>
-
 <!-- Ekstern script -->
 <script src="script.js" defer></script>
 
