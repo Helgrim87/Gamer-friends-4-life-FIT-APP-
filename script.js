@@ -118,56 +118,65 @@ const levelNames = [
 let currentUser = null;
 
 window.addEventListener("DOMContentLoaded", () => {
-    // Firebase er nå garantert lastet (fordi vi inkluderer SDK-ene i HTML)
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    // Firebase er nå garantert lastet (fordi vi inkluderer SDK-ene i HTML)
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-    const userSelect = document.getElementById("user-select");
-    const loginBtn = document.getElementById("login-btn");
-    const status = document.getElementById("status");
+    const userSelect = document.getElementById("user-select");
+console.log("userSelect:", userSelect);
+const loginBtn = document.getElementById("login-btn");
+console.log("loginBtn:", loginBtn);
+const status = document.getElementById("status");
+console.log("status:", status);
+const passwordInput = document.getElementById("password-input");
+console.log("passwordInput:", passwordInput);
 
-    db.ref("users").once("value").then(snapshot => {
-        const users = snapshot.val();
-        for (let username in users) {
-            const option = document.createElement("option");
-            option.value = username;
-            option.textContent = username;
-            userSelect.appendChild(option);
-        }
-    });
+    db.ref("users").once("value").then(snapshot => {
+        const users = snapshot.val();
+        for (let username in users) {
+            const option = document.createElement("option");
+            option.value = username;
+            option.textContent = username;
+            userSelect.appendChild(option);
+        }
+    });
 
-    loginBtn.addEventListener("click", () => {
-        const username = userSelect.value;
-        const pw = document.getElementById("password-input").value.trim(); // Korrigert ID
-        if (!username || username === "Velg bruker") return alert("Velg en bruker!");
+    loginBtn.addEventListener("click", () => {
+        const username = userSelect.value;
+        const pw = document.getElementById("password-input").value.trim(); // Korrigert ID
+        if (!username || username === "Velg bruker") return alert("Velg en bruker!");
 
-        if (pw.toLowerCase() !== username[0].toLowerCase()) {
-            return alert("Feil passord. Hint: Første bokstav i brukernavnet.");
-        }
+        if (pw.toLowerCase() !== username[0].toLowerCase()) {
+            return alert("Feil passord. Hint: Første bokstav i brukernavnet.");
+        }
 
-        currentUser = username;
-        loadUserData(username);
-    });
+        currentUser = username;
+        loadUserData(username);
+    });
 
-    function loadUserData(username) {
-        db.ref("users/" + username).once("value").then(snap => {
-            const data = snap.val();
-            if (!data) return status.textContent = "Fant ikke brukerdata";
+    function loadUserData(username) {
+        db.ref("users/" + username).once("value").then(snap => {
+            const data = snap.val();
+            if (!data) return status.textContent = "Fant ikke brukerdata";
 
-            const xp = data.xp || 0;
-            const level = getLevelFromXP(xp);
+            const xp = data.xp || 0;
+            const level = getLevelFromXP(xp);
 
-            status.innerHTML = `
-                <h2>${username}</h2>
-                <p>XP: ${xp}</p>
-                <p>Nivå: ${levelNames[level] || "Ukjent"} (Level ${level})</p>
-            `;
+            status.innerHTML = `
+                <h2>${username}</h2>
+                <p>XP: ${xp}</p>
+                <p>Nivå: ${levelNames[level] || "Ukjent"} (Level ${level})</p>
+            `;
 
-            updateUserLevel(username, xp);
-        });
-    }
+            updateUserLevel(username, xp);
+        });
+    }
 
-    function getLevelFromXP(xp) {
-        return Math.min(Math.floor(xp / 10), levelNames.length - 1);
-    }
+    function getLevelFromXP(xp) {
+        return Math.min(Math.floor(xp / 10), levelNames.length - 1);
+    }
 });
+
+function updateUserLevel(username, xp) {
+    // Implementer denne funksjonen
+}
