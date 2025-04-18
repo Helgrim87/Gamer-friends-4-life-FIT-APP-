@@ -147,7 +147,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  loginBtn.addEventListener("click", () => {
+ loginBtn.addEventListener("click", () => {
     const username = userSelect.value;
     const pw = document.getElementById("pass").value.trim();
     if (!username || username === "Velg bruker") return alert("Velg en bruker!");
@@ -182,17 +182,3 @@ window.addEventListener("DOMContentLoaded", () => {
     return Math.min(Math.floor(xp / 10), levelNames.length - 1);
   }
 });
-
-function updateUserLevel(username, xp) {
-  const level = Math.min(Math.floor(xp / 10), levelNames.length - 1);
-  const levelName = levelNames[level] || "Ukjent";
-
-  firebase.database().ref("users/" + username).update({
-    level: level,
-    levelName: levelName
-  }).then(() => {
-    console.log(`Oppdaterte nivå for ${username} til ${level} (${levelName})`);
-  }).catch(err => {
-    console.error("Feil ved oppdatering av nivå:", err);
-  });
-}
