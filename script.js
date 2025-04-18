@@ -121,17 +121,7 @@ window.addEventListener("DOMContentLoaded", () => {
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
-  const app = document.createElement("div");
-  app.style.cssText = "max-width: 500px; margin: 3rem auto; color: white; font-family: sans-serif; text-align: center;";
-  document.body.style.background = "#111";
-  app.innerHTML = `
-    <h1>GF4L Login</h1>
-    <select id="user-select"><option>Velg bruker</option></select><br><br>
-    <input type="password" id="pass" placeholder="Passord" style="padding: 8px"><br><br>
-    <button id="login-btn">Logg inn</button>
-    <div id="status" style="margin-top:20px;"></div>
-  `;
-  document.body.appendChild(app);
+
 
   const userSelect = document.getElementById("user-select");
   const loginBtn = document.getElementById("login-btn");
