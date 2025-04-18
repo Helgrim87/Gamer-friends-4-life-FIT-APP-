@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fit G4FL - Prototype</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Press+Start+2P&family=Roboto+Mono&family=Merriweather&family=Lobster&family=Orbitron:wght@400;700&family=Cinzel:wght@400;700&family=Quicksand:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <style>
+        /* --- BASE & UTILITY STYLES --- */
+        body { font-family: 'Inter', sans-serif; transition: background-color 0.3s, color 0.3s; }
+        .button-base { padding: 0.6rem 1.2rem; font-weight: 500; cursor: pointer; transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s; border: 1px solid transparent; text-align: center; } /* Added box-shadow transition */
+        .button-base:hover { transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); } /* Subtle lift on hover */
+        .button-base:active { transform: scale(0.98); box-shadow: 0 1px 2px rgba(0,0,0,0.1); } /* Slightly less shadow on click */
+        .card { border-width: 1px; border-radius: 0.5rem; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); }
+        input, select, textarea { width: 100%; padding: 0.5rem 0.75rem; border-width: 1px; border-radius: 0.375rem; margin-top: 0.25rem; transition: border-color 0.2s, box-shadow 0.2s; } /* Added transition */
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent-color, #5eead4); box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb, 94 234 212) / 0.3); } /* Focus style using accent color */
+        label { font-weight: 500; display: block; margin-bottom: 0.25rem; }
+        .view-section { display: none; transition: opacity 0.3s ease-in-out; } /* Added transition */
+        .view-section.active { display: block; opacity: 1; animation: fadeInView 0.4s ease-in-out; } /* Basic fade-in */
+        #login-section { display: block; } /* Default visible */
+        #app-content.logged-in #login-section { display: none; } /* Hide when logged in */
+        #app-content.logged-out .requires-login { display: none; } /* Hide main content when logged out */
+        #app-content.logged-in .requires-login { display: block; } /* Show main content when logged in */
+        #app-content.logged-out #logout-button { display: none; }
+        #app-content.logged-in #logout-button { display: inline-block; }
+        .level-up-indicator { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0); padding: 30px 50px; color: white; font-size: 2em; font-weight: bold; z-index: 1000; opacity: 0; transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity 0.5s; text-align: center; }
+        .level-up-indicator.show { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        .mascot { font-size: 2rem; transition: transform 0.3s ease-in-out; }
+        .mascot.happy { transform: scale(1.2) rotate(10deg); }
+        .nav-button { padding: 0.5rem 1rem; margin: 0 0.25rem; border-radius: 0.375rem; font-weight: 500; transition: background-color 0.2s, color 0.2s, transform 0.1s, box-shadow 0.2s; } /* Added more transition props */
+        .daily-tip { padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem; text-align: center; font-style: italic; }
+        .level-emoji { font-size: 1.2em; margin-left: 0.25rem; display: inline-block; }
+        .form-field-kg, .form-field-reps, .form-field-sets, .form-field-km { display: none; }
+        .form-field-kg.active, .form-field-reps.active, .form-field-sets.active, .form-field-km.active { display: block; }
+        .snoop-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 1001; padding: 1rem; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s;}
+        .snoop-modal.show { opacity: 1; visibility: visible; }
+        .snoop-modal-content { max-width: 500px; width: 100%; max-height: 80vh; overflow-y: auto; padding: 2rem; border-radius: 0.5rem; position: relative; transform: scale(0.9); transition: transform 0.3s;}
+        .snoop-modal.show .snoop-modal-content { transform: scale(1); }
+        .notification-bar { padding: 0.75rem 1rem; margin-bottom: 1rem; border-radius: 0.375rem; text-align: center; font-size: 0.9rem; display: none; }
+        .notification-bar.show { display: block; animation: fadeInOut 5s forwards; }
+        .hidden { display: none; }
+        .achievement-unlocked { font-weight: bold; }
+        .achievement-locked { opacity: 0.6; font-style: italic; }
+        .mood-selector label { display: inline-block; margin-right: 0.5rem; cursor: pointer; padding: 0.3rem 0.6rem; border-radius: 0.5rem; transition: background-color 0.2s, border-color 0.2s, transform 0.1s; border: 1px solid transparent; } /* Added transform */
+        .mood-selector label:hover { transform: translateY(-1px); }
+        .mood-selector input[type="radio"] { display: none; }
+        .mood-selector input[type="radio"]:checked + label { /* Style for selected label */ }
+        .admin-only { display: none; }
+
+        /* Chat specific styles (Re-added) */
+        #chat-messages { scroll-behavior: smooth; }
+        #chat-messages p { padding: 0.25rem 0.5rem; margin-bottom: 0.25rem; border-radius: 0.25rem; word-break: break-word; }
+        #chat-messages p > strong { margin-right: 0.5rem; }
+        #chat-messages p.new-message-animate { animation: fadeIn 0.5s ease-out; }
+
+        /* --- THEME DEFINITIONS --- */
+        /* Default/Fallback Theme (Klinkekule) */
+         :root { --bg-color: #111827; --text-color: #e5e7eb; --card-bg: #1f2937; --border-color: #374151; --header-color: #2dd4bf; --accent-color: #5eead4; --accent-color-rgb: 94, 234, 212; --primary-bg: #0d9488; --primary-hover: #0f766e; --primary-border: #2dd4bf; --secondary-bg: #374151; --secondary-hover: #4b5563; --secondary-border: #6b7280; --input-bg: #1f2937; --input-border: #374151; --input-text: #e5e7eb; --input-placeholder: #6b7280; --progress-bg: #374151; --progress-fill: linear-gradient(90deg, #14b8a6, #5eead4); --nav-active-bg: #0d9488; --nav-active-text: white; --nav-inactive-bg: #374151; --nav-inactive-text: #9ca3af; --tip-bg: #1f2937; --tip-border: #14b8a6; --tip-text: #e5e7eb; --notify-bg: #2dd4bf; --notify-text: #111827; --button-radius: 0.375rem; --font-family: 'Quicksand', sans-serif; --mood-selected-bg: var(--primary-bg); --mood-selected-text: white; --mood-selected-border: var(--primary-border); }
+
+        /* Kennyball Theme (Retro Gaming) - UPDATED */
+        .theme-kennyball {
+            --bg-color: #1a1a1a; --text-color: #e0e0e0; --card-bg: #0d0d0d; --border-color: #00ff00; --header-color: #00ff00; --accent-color: #39ff14; --accent-color-rgb: 57, 255, 20; --primary-bg: #00cc00; --primary-hover: #39ff14; --primary-border: #66ff66; --secondary-bg: #333333; --secondary-hover: #555555; --secondary-border: #666666; --input-bg: #000000; --input-border: #00ff00; --input-text: #e0e0e0; --input-placeholder: #777777; --progress-bg: #333333; --progress-fill: #00ff00; --nav-active-bg: #00ff00; --nav-active-text: #000000; --nav-inactive-bg: #222222; --nav-inactive-text: #bbbbbb; --tip-bg: #111111; --tip-border: #00cc00; --tip-text: #cccccc; --notify-bg: #00ff00; --notify-text: #000000; --button-radius: 0px; --font-family: 'Press Start 2P', monospace; --mood-selected-bg: var(--primary-bg); --mood-selected-text: black; --mood-selected-border: var(--primary-border);
+         }
+        .theme-kennyball .level-up-indicator { background: linear-gradient(45deg, #0d0d0d, #00ff00); box-shadow: 0 0 15px #39ff14; border-radius: 0px; color: #000000; text-shadow: 1px 1px 0px #00cc00; }
+        .theme-kennyball .button-primary { box-shadow: 0 0 5px var(--accent-color); text-shadow: 1px 1px 1px rgba(0,0,0,0.4); }
+        .theme-kennyball .text-header { text-shadow: 1px 1px 0px #009900; }
+        .theme-kennyball #chat-messages p { background-color: rgba(0, 255, 0, 0.05); border-left: 2px solid var(--accent-color); }
+
+        /* Nikko Theme */
+        .theme-nikko { --bg-color: #171717; --text-color: #d4d4d4; --card-bg: #262626; --border-color: #404040; --header-color: #facc15; --accent-color: #facc15; --accent-color-rgb: 250, 204, 21; --primary-bg: linear-gradient(45deg, #ca8a04, #facc15); --primary-hover: linear-gradient(45deg, #eab308, #fde047); --primary-border: #eab308; --secondary-bg: #404040; --secondary-hover: #525252; --secondary-border: #ca8a04; --input-bg: #262626; --input-border: #404040; --input-text: #d4d4d4; --input-placeholder: #737373; --progress-bg: #404040; --progress-fill: linear-gradient(90deg, #ca8a04, #facc15); --nav-active-bg: #ca8a04; --nav-active-text: #171717; --nav-inactive-bg: #404040; --nav-inactive-text: #a3a3a3; --tip-bg: #262626; --tip-border: #ca8a04; --tip-text: #d4d4d4; --notify-bg: #facc15; --notify-text: #422006; --button-radius: 0.5rem; --font-family: 'Inter', sans-serif; --mood-selected-bg: #ca8a04; --mood-selected-text: #171717; --mood-selected-border: #eab308; }
+        .theme-nikko .button-primary { color: var(--bg-color); font-weight: bold; box-shadow: 0 1px 2px rgba(0,0,0,0.3); background: var(--primary-bg); }
+        .theme-nikko .button-primary:hover { background: var(--primary-hover); }
+        .theme-nikko .level-up-indicator { background: radial-gradient(circle, #fde047, #ca8a04); box-shadow: 0 0 20px #facc15; border-radius: 50%; color: #422006;}
+        .theme-nikko .progress-bar-fill { background: var(--progress-fill); }
+
+        /* Klinkekule Theme */
+        .theme-klinkekule { --bg-color: #111827; --text-color: #e5e7eb; --card-bg: #1f2937; --border-color: #374151; --header-color: #2dd4bf; --accent-color: #5eead4; --accent-color-rgb: 94, 234, 212; --primary-bg: #0d9488; --primary-hover: #0f766e; --primary-border: #2dd4bf; --secondary-bg: #374151; --secondary-hover: #4b5563; --secondary-border: #6b7280; --input-bg: #1f2937; --input-border: #374151; --input-text: #e5e7eb; --input-placeholder: #6b7280; --progress-bg: #374151; --progress-fill: linear-gradient(90deg, #14b8a6, #5eead4); --nav-active-bg: #0d9488; --nav-active-text: white; --nav-inactive-bg: #374151; --nav-inactive-text: #9ca3af; --tip-bg: #1f2937; --tip-border: #14b8a6; --tip-text: #e5e7eb; --notify-bg: #2dd4bf; --notify-text: #111827; --button-radius: 0.375rem; --font-family: 'Quicksand', sans-serif; --mood-selected-bg: var(--primary-bg); --mood-selected-text: white; --mood-selected-border: var(--primary-border); }
+        .theme-klinkekule .level-up-indicator { background: linear-gradient(135deg, #14b8a6, #5eead4); box-shadow: 0 0 15px #2dd4bf; border-radius: 0.5rem; color: #064e3b; }
+        .theme-klinkekule .progress-bar-fill { background: var(--progress-fill); }
+
+        /* Helgrim Theme (Razer Style) - UPDATED */
+        .theme-helgrim {
+            --bg-color: #000000; --text-color: #cccccc; --card-bg: #1a1a1a; --border-color: #333333; --header-color: #00ff00; --accent-color: #66ff66; --accent-color-rgb: 102, 255, 102; --primary-bg: #00ff00; --primary-hover: #66ff66; --primary-border: #00ff00; --secondary-bg: #222222; --secondary-hover: #333333; --secondary-border: #444444; --input-bg: #111111; --input-border: #00ff00; --input-text: #e0e0e0; --input-placeholder: #555555; --progress-bg: #333333; --progress-fill: #00ff00; --nav-active-bg: #00ff00; --nav-active-text: #000000; --nav-inactive-bg: #222222; --nav-inactive-text: #aaaaaa; --tip-bg: #111111; --tip-border: #00ff00; --tip-text: #cccccc; --notify-bg: #00ff00; --notify-text: #000000; --button-radius: 0.25rem; --font-family: 'Inter', sans-serif; --mood-selected-bg: var(--primary-bg); --mood-selected-text: black; --mood-selected-border: var(--primary-border);
+        }
+        .theme-helgrim .level-up-indicator { background: linear-gradient(135deg, #000000, #00ff00); box-shadow: 0 0 15px #66ff66; border: 1px solid #00ff00; border-radius: 5px; color: #00ff00; text-shadow: 0 0 5px #00ff00;}
+        .theme-helgrim .button-primary { text-shadow: 1px 1px 1px rgba(0,0,0,0.5); color: #000000; font-weight: bold;}
+        .theme-helgrim .text-header, .theme-helgrim .text-accent { text-shadow: 0 0 3px var(--header-color); }
+        .theme-helgrim #chat-messages p { background-color: rgba(0, 255, 0, 0.08); border-left: 2px solid var(--accent-color); }
+
+        /* krrroppekatt Theme */
+        .theme-krrroppekatt { --bg-color: #111827; --text-color: #d1d5db; --card-bg: #1f2937; --border-color: #4b5563; --header-color: #a855f7; --accent-color: #c084fc; --accent-color-rgb: 192, 132, 252; --primary-bg: #9333ea; --primary-hover: #a855f7; --primary-border: #c084fc; --secondary-bg: #4b5563; --secondary-hover: #6b7280; --secondary-border: #9ca3af; --input-bg: #1f2937; --input-border: #4b5563; --input-text: #d1d5db; --input-placeholder: #6b7280; --progress-bg: #4b5563; --progress-fill: linear-gradient(90deg, #9333ea, #c084fc); --nav-active-bg: #9333ea; --nav-active-text: white; --nav-inactive-bg: #374151; --nav-inactive-text: #9ca3af; --tip-bg: #1f2937; --tip-border: #a855f7; --tip-text: #d1d5db; --notify-bg: #c084fc; --notify-text: #111827; --button-radius: 0.5rem; --font-family: 'Inter', sans-serif; --mood-selected-bg: var(--primary-bg); --mood-selected-text: white; --mood-selected-border: var(--primary-border); }
+        .theme-krrroppekatt .level-up-indicator { background: radial-gradient(circle, #c084fc, #7e22ce); box-shadow: 0 0 20px #a855f7; border-radius: 50%; color: white; }
+        .theme-krrroppekatt .progress-bar-fill { background: var(--progress-fill); }
+
+        /* Beerbjorn Theme */
+        .theme-beerbjorn { --bg-color: #3a3a3a; --text-color: #e0e0e0; --card-bg: #4f4f4f; --border-color: #6d6d6d; --header-color: #ffcc66; --accent-color: #e8a87c; --accent-color-rgb: 232, 168, 124; --primary-bg: #8c5e58; --primary-hover: #a47d76; --primary-border: #e8a87c; --secondary-bg: #6d6d6d; --secondary-hover: #8a8a8a; --secondary-border: #a0a0a0; --input-bg: #4f4f4f; --input-border: #6d6d6d; --input-text: #e0e0e0; --input-placeholder: #a0a0a0; --progress-bg: #6d6d6d; --progress-fill: #ffcc66; --nav-active-bg: #8c5e58; --nav-active-text: white; --nav-inactive-bg: #6d6d6d; --nav-inactive-text: #b0b0b0; --tip-bg: #4f4f4f; --tip-border: #e8a87c; --tip-text: #e0e0e0; --notify-bg: #ffcc66; --notify-text: #3a3a3a; --button-radius: 0.25rem; --font-family: 'Cinzel', serif; --mood-selected-bg: var(--primary-bg); --mood-selected-text: white; --mood-selected-border: var(--primary-border); }
+        .theme-beerbjorn .level-up-indicator { background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><defs><pattern id="viking" patternUnits="userSpaceOnUse" width="20" height="20"><path d="M0 10 L10 0 L20 10 L10 20 Z" fill="%236d6d6d"/></pattern></defs><rect width="100" height="100" fill="%234f4f4f"/><rect width="100" height="100" fill="url(%23viking)"/></svg>'), linear-gradient(to bottom, #8c5e58, #4f4f4f); box-shadow: 0 0 10px #ffcc66; border: 2px solid #ffcc66; border-radius: 0.5rem; color: #ffcc66; }
+        .theme-beerbjorn .text-header { text-shadow: 1px 1px 2px rgba(0,0,0,0.7); }
+
+        /* Dardna Theme */
+        .theme-dardna { --bg-color: #f0fff4; --text-color: #2f4f4f; --card-bg: #ffffff; --border-color: #90ee90; --header-color: #2e8b57; --accent-color: #3cb371; --accent-color-rgb: 60, 179, 113; --primary-bg: #2e8b57; --primary-hover: #3cb371; --primary-border: #66cdaa; --secondary-bg: #98fb98; --secondary-hover: #f0fff0; --secondary-border: #90ee90; --input-bg: #ffffff; --input-border: #90ee90; --input-text: #2f4f4f; --input-placeholder: #8fbc8f; --progress-bg: #98fb98; --progress-fill: #2e8b57; --nav-active-bg: #2e8b57; --nav-active-text: white; --nav-inactive-bg: #f0fff0; --nav-inactive-text: #2e8b57; --tip-bg: #f5fffa; --tip-border: #3cb371; --tip-text: #2f4f4f; --notify-bg: #98fb98; --notify-text: #2e8b57; --button-radius: 0.75rem; --font-family: 'Quicksand', sans-serif; --mood-selected-bg: var(--primary-bg); --mood-selected-text: white; --mood-selected-border: var(--primary-border); }
+        .theme-dardna .level-up-indicator { background: linear-gradient(135deg, #90ee90, #3cb371); box-shadow: 0 0 15px #2e8b57; border-radius: 50% 10px 50% 10px; color: #f0fff4; }
+        .theme-dardna .button-primary { box-shadow: 0 2px 3px rgba(46, 139, 87, 0.3); }
+
+        /* Skytebasen Theme */
+        .theme-skytebasen { --bg-color: #0c0a1d; --text-color: #d1d5db; --card-bg: #1e1b3a; --border-color: #4c3f78; --header-color: #a78bfa; --accent-color: #c084fc; --accent-color-rgb: 192, 132, 252; --primary-bg: #7c3aed; --primary-hover: #9333ea; --primary-border: #a78bfa; --secondary-bg: #4c3f78; --secondary-hover: #6d28d9; --secondary-border: #7c3aed; --input-bg: #1e1b3a; --input-border: #4c3f78; --input-text: #d1d5db; --input-placeholder: #6b7280; --progress-bg: #4c3f78; --progress-fill: linear-gradient(90deg, #7c3aed, #c084fc); --nav-active-bg: #7c3aed; --nav-active-text: white; --nav-inactive-bg: #4c3f78; --nav-inactive-text: #9ca3af; --tip-bg: #1e1b3a; --tip-border: #a78bfa; --tip-text: #d1d5db; --notify-bg: #c084fc; --notify-text: #0c0a1d; --button-radius: 0.1rem; --font-family: 'Orbitron', sans-serif; --mood-selected-bg: var(--primary-bg); --mood-selected-text: white; --mood-selected-border: var(--primary-border); }
+        .theme-skytebasen .level-up-indicator { background: radial-gradient(circle, #0c0a1d, #7c3aed, #c084fc); box-shadow: 0 0 25px #a78bfa; border: 1px solid #a78bfa; border-radius: 3px; color: white; text-shadow: 0 0 5px #fff;}
+        .theme-skytebasen .progress-bar-fill { background: var(--progress-fill); }
+        .theme-skytebasen .button-primary, .theme-skytebasen .button-secondary { letter-spacing: 1px; }
+
+        /* --- APPLY THEME VARIABLES --- */
+        body { background-color: var(--bg-color); color: var(--text-color); font-family: var(--font-family); }
+        .bg-card, .snoop-modal-content { background-color: var(--card-bg); }
+        .border-card { border-color: var(--border-color); }
+        .text-header { color: var(--header-color); }
+        .text-accent { color: var(--accent-color); }
+        .button-primary { background: var(--primary-bg); color: var(--primary-text, white); border: 1px solid var(--primary-border); border-radius: var(--button-radius); }
+        .button-primary:hover { background: var(--primary-hover); }
+        .button-secondary { background-color: var(--secondary-bg); color: var(--secondary-text, var(--text-color)); border: 1px solid var(--secondary-border); border-radius: var(--button-radius); }
+        .button-secondary:hover { background-color: var(--secondary-hover); }
+        input, select, textarea { background-color: var(--input-bg); border-color: var(--input-border); color: var(--input-text); border-radius: var(--button-radius); font-family: var(--font-family);}
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent-color); box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb, 94 234 212) / 0.3); } /* Added default RGB fallback */
+        input::placeholder { color: var(--input-placeholder); }
+        .progress-bar-bg { background-color: var(--progress-bg); border-radius: var(--button-radius); overflow: hidden; }
+        .progress-bar-fill { background: var(--progress-fill); border-radius: var(--button-radius); height: 100%; transition: width 0.5s ease-out; } /* Added height, transition */
+        .nav-button-active { background-color: var(--nav-active-bg); color: var(--nav-active-text); border-radius: var(--button-radius); }
+        .nav-button-inactive { background-color: var(--nav-inactive-bg); color: var(--nav-inactive-text); border-radius: var(--button-radius); }
+        .nav-button:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .daily-tip { background-color: var(--tip-bg); border: 1px solid var(--tip-border); color: var(--tip-text); }
+        .notification-bar { background-color: var(--notify-bg); color: var(--notify-text); }
+        .mood-selector label { border-color: var(--input-border); }
+        .mood-selector input[type="radio"]:checked + label { background-color: var(--mood-selected-bg); color: var(--mood-selected-text); border-color: var(--mood-selected-border); }
+
+        /* Simple Fade In/Out Animation for Notification */
+        @keyframes fadeInOut { 0% { opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
+        /* Simple FadeIn for View Sections & Chat Messages */
+        @keyframes fadeInView { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    </style>
+</head>
+<!-- START OF PART 2 -->
+<body class="p-4 md:p-8"> <!-- Default theme class set by JS later -->
+
+    <header class="mb-6 flex flex-col sm:flex-row justify-between items-center">
+        <h1 class="text-3xl font-bold text-header mb-4 sm:mb-0">Fit G4FL</h1>
+        <div class="flex items-center space-x-4">
+            <button id="check-stat-button" class="button-base button-secondary text-xs py-1 px-2 hidden">Sjekk Ukens Stats</button>
+            <span id="logged-in-user" class="font-medium"></span>
+            <button id="logout-button" class="button-base button-secondary text-xs">Logg ut</button>
+        </div>
+    </header>
+
+    <!-- Removed Countdown Timer Section -->
+    <div id="demo-mode-indicator" class="text-center p-2 mb-4 text-sm italic text-accent font-semibold border border-dashed border-card rounded">
+        Live Mode - Kobler til Firebase... <!-- Default message for live mode -->
+    </div>
+
+    <div id="notification-area" class="notification-bar"></div> <!-- Notification animation applied via CSS -->
+
+    <div id="daily-tip-container" class="daily-tip">Laster dagens (hysteriske) tips...</div>
+
+    <div id="app-content" class="logged-out"> <!-- Start logged out -->
+        <section id="login-section" class="mb-6">
+            <div class="card bg-card border-card">
+                <h2 class="text-2xl font-semibold mb-4 text-header">Velg Bruker & Logg Inn</h2>
+                <form id="login-form" class="flex flex-col sm:flex-row items-end gap-4">
+                    <div class="flex-grow w-full">
+                        <label for="user-select">Bruker:</label>
+                        <select id="user-select" name="user-select" required>
+                            <option value="" disabled selected>-- Laster brukere --</option>
+                        </select>
+                    </div>
+                    <div class="flex-grow w-full">
+                         <label for="password-input">Passord:</label>
+                         <input type="password" id="password-input" name="password" class="font-mono" required>
+                    </div>
+                    <button type="submit" class="button-base button-primary w-full sm:w-auto">Logg Inn</button>
+                </form>
+                 <p class="text-xs italic mt-2">Passordet er den første bokstaven i brukernavnet ditt.</p>
+            </div>
+        </section>
+
+        <div class="requires-login">
+             <nav class="mb-6 text-center flex flex-wrap justify-center gap-2">
+                <button class="nav-button view-button nav-button-inactive" data-view="logger">Logg Økt</button>
+                <button class="nav-button view-button nav-button-inactive" data-view="profile">Min Profil</button>
+                <button class="nav-button view-button nav-button-inactive" data-view="log">Min Logg</button>
+                <button class="nav-button view-button nav-button-inactive" data-view="userlist">Brukerliste</button>
+                <button class="nav-button view-button nav-button-inactive" data-view="scoreboard">Scoreboard</button>
+                <button class="nav-button view-button nav-button-inactive" data-view="achievements">Achievements</button>
+                <button class="nav-button view-button nav-button-inactive" data-view="chat">Chat</button> <!-- Chat Button Re-added -->
+                <button class="nav-button view-button nav-button-inactive" data-view="about">Om Appen</button>
+                <button class="nav-button view-button nav-button-inactive" data-view="extras">Ekstra</button>
+                <button class="nav-button view-button nav-button-inactive admin-only" data-view="admin">Admin</button>
+            </nav>
+
+            <main>
+                 <section id="logger-view" class="view-section">
+                     <div class="card bg-card border-card">
+                        <h2 class="text-2xl font-semibold mb-4 text-header">Loggfør Økt</h2>
+                        <form id="workout-form" class="space-y-4">
+                            <div>
+                                <label for="exercise-type">Type aktivitet:</label>
+                                <select id="exercise-type" name="exercise-type" required>
+                                    <option value="" disabled selected>-- Velg type --</option>
+                                    <option value="Markløft">Markløft</option>
+                                    <option value="Knebøy">Knebøy</option>
+                                    <option value="Frontbøy">Frontbøy</option>
+                                    <option value="Militærpress">Militærpress</option>
+                                    <option value="Arm curl">Arm curl</option>
+                                    <option value="Sideløft">Sideløft</option>
+                                    <option value="Hip thrust">Hip thrust</option>
+                                    <option value="Russian twist">Russian twist</option>
+                                    <option value="Gåtur">Gåtur</option>
+                                    <option value="Annet">Annet (spesifiser under)</option>
+                                </select>
+                            </div>
+                            <div id="custom-exercise-name-field" style="display: none;">
+                                <label for="exercise">Navn på øvelse:</label>
+                                <input type="text" id="exercise" name="exercise" placeholder="F.eks. Benkpress">
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div class="form-field-kg active">
+                                    <label for="kilos">Kilo:</label>
+                                    <input type="number" id="kilos" name="kilos" step="0.1" min="0" placeholder="60">
+                                </div>
+                                <div class="form-field-reps active">
+                                    <label for="reps">Reps:</label>
+                                    <input type="number" id="reps" name="reps" min="1" placeholder="8">
+                                </div>
+                                <div class="form-field-sets active">
+                                    <label for="sets">Sett:</label>
+                                    <input type="number" id="sets" name="sets" min="1" placeholder="3">
+                                </div>
+                            </div>
+                             <div class="form-field-km">
+                                 <label for="km">Kilometer (km):</label>
+                                 <input type="number" id="km" name="km" step="0.1" min="0.1" placeholder="5.5">
+                             </div>
+                             <div>
+                                 <label for="workout-comment">Kommentar (valgfritt):</label>
+                                 <input type="text" id="workout-comment" name="workout-comment" placeholder="Hvordan gikk økten? Noe spesielt?">
+                             </div>
+                             <div class="mt-4">
+                                 <label>Hvordan føltes økten? (Påvirker XP litt)</label> <!-- Updated label -->
+                                 <div class="mood-selector mt-1 flex flex-wrap gap-2">
+                                     <input type="radio" name="mood" id="mood-great" value="great">
+                                     <label for="mood-great" class="border-card">😃 Lett</label> <!-- Effort-based -->
+                                     <input type="radio" name="mood" id="mood-good" value="good" checked>
+                                     <label for="mood-good" class="border-card">😊 Normal</label> <!-- Default -->
+                                     <input type="radio" name="mood" id="mood-ok" value="ok">
+                                     <label for="mood-ok" class="border-card">😐 OK+</label> <!-- Effort-based -->
+                                     <input type="radio" name="mood" id="mood-meh" value="meh">
+                                     <label for="mood-meh" class="border-card">😕 Tungt</label> <!-- Effort-based -->
+                                     <input type="radio" name="mood" id="mood-bad" value="bad">
+                                     <label for="mood-bad" class="border-card">😩 Blytungt!</label> <!-- Effort-based -->
+                                 </div>
+                             </div>
+                            <button type="submit" class="button-base button-primary w-full sm:w-auto mt-4">Legg til aktivitet</button>
+                        </form>
+                    </div>
+                    <div class="card bg-card border-card mt-6">
+                         <h3 class="text-xl font-semibold mb-3 text-accent">Økt så langt:</h3>
+                         <ul id="current-session-list" class="space-y-2 mb-4 list-disc list-inside">
+                             <li class="italic">Ingen aktivitet lagt til enda...</li>
+                         </ul>
+                         <button id="complete-workout-button" class="button-base button-primary w-full" disabled>Fullfør Økt & Få XP!</button>
+                    </div>
+                </section>
+                 <section id="profile-view" class="view-section">
+                    <div class="card bg-card border-card">
+                        <h2 class="text-2xl font-semibold mb-4 text-header">Min Profil</h2>
+                        <div class="space-y-3">
+                            <p class="text-lg">Nivå: <span id="level-display" class="font-bold text-accent">Laster...</span><span id="level-emoji" class="level-emoji"></span></p>
+                            <div>
+                                <p>XP Fremgang:</p>
+                                <div class="w-full progress-bar-bg h-4 mt-1 overflow-hidden">
+                                    <div id="xp-progress-bar" class="progress-bar-fill h-4" style="width: 0%;"></div>
+                                </div>
+                                <p class="text-sm text-right mt-1"><span id="xp-current">0</span> / <span id="xp-next-level">100</span> XP</p>
+                            </div>
+                            <p>XP Bank (Total): <span id="xp-total" class="font-bold text-accent">0</span> XP</p>
+                            <p>Dager trent på rad (Streak): <span id="streak-counter" class="font-bold text-accent">0</span></p>
+                        </div>
+                   </div>
+                 </section>
+                 <section id="log-view" class="view-section">
+                    <div class="card bg-card border-card">
+                        <h2 class="text-2xl font-semibold mb-4 text-header">Min Treningslogg</h2>
+                        <div id="log-entries" class="space-y-4">
+                            <p class="italic">Laster logg...</p>
+                        </div>
+                    </div>
+                 </section>
+                 <section id="userlist-view" class="view-section">
+                    <div class="card bg-card border-card">
+                        <h2 class="text-2xl font-semibold mb-4 text-header">Brukerliste</h2>
+                        <ul id="user-list-display" class="space-y-3">
+                            <li class="italic">Laster brukerliste...</li>
+                        </ul>
+                    </div>
+                 </section>
+                 <section id="scoreboard-view" class="view-section">
+                    <div class="card bg-card border-card">
+                        <h2 class="text-2xl font-semibold mb-4 text-header">Ukens Scoreboard (XP)</h2>
+                        <ol id="scoreboard-list" class="list-decimal list-inside space-y-2">
+                             <li class="italic">Laster scoreboard...</li>
+                        </ol>
+                   </div>
+                 </section>
+                 <section id="achievements-view" class="view-section">
+                    <div class="card bg-card border-card">
+                        <h2 class="text-2xl font-semibold mb-4 text-header">Achievements</h2>
+                        <div id="achievements-list" class="space-y-3">
+                             <p class="italic">Laster achievements...</p>
+                        </div>
+                   </div>
+                 </section>
+                 <!-- Chat Section Re-added -->
+                 <section id="chat-view" class="view-section">
+                     <div class="card bg-card border-card">
+                         <h2 class="text-2xl font-semibold mb-4 text-header">G4FL Chat</h2>
+                         <div id="chat-messages" class="mb-4 p-2 border border-card h-64 overflow-y-auto flex flex-col-reverse bg-opacity-10" style="background-color: rgba(128, 128, 128, 0.1);">
+                             <p class="text-center italic text-sm opacity-70 p-4" id="chat-loading-msg">Laster meldinger...</p>
+                         </div>
+                         <form id="chat-form" class="flex gap-2">
+                             <input type="text" id="chat-input" placeholder="Skriv en melding..." class="flex-grow" required autocomplete="off" maxlength="280">
+                             <button type="submit" class="button-base button-primary">Send</button>
+                         </form>
+                     </div>
+                 </section>
+                 <section id="about-view" class="view-section">
+                    <div class="card bg-card border-card">
+                        <h2 class="text-2xl font-semibold mb-4 text-header">Om Fit G4FL</h2>
+                        <div class="space-y-4 text-base leading-relaxed">
+                             <p> Yo! Vi er kanskje rå i gaming, og det er få folk man stoler mer på enn gjengen her når det gjelder raids eller clutch plays. Men... la oss være ærlige, kanskje ikke alle er like kjappe på 60-meteren lenger? 😉 </p>
+                             <p> Denne appen er et forsøk på å gjøre det litt morsommere å komme seg i litt bedre form. Se på det som et nytt spill vi kan spille sammen – et der vi levler opp IRL (In Real Life). </p>
+                             <p> Målet er ikke å bli verdensmester i noe som helst (med mindre det er gaming, da), men å ha det gøy, logge litt fremgang, og kanskje føle seg litt mindre "lubben, feit og træg/sen" underveis. Vi heier på hverandre, enten det er i spillet eller på vei til neste level her! </p>
+                             <p class="mt-6 text-sm italic"> Laget med kode og (litt for mye?) koffein. </p>
+                        </div>
+                   </div>
+                 </section>
+                 <section id="extras-view" class="view-section">
+                    <div class="card bg-card border-card">
+                        <h2 class="text-2xl font-semibold mb-4 text-header">Ekstra</h2>
+                        <div class="flex flex-col items-center space-y-6">
+                            <div class="text-center">
+                                <button id="motivation-button" class="button-base button-secondary">Mistet Motivasjonen?</button>
+                                <p class="text-xs mt-1">(Trykk for en brutal sannhet)</p>
+                            </div>
+                            <div>
+                                <p class="text-center mb-2">Motivasjonsmaskot:</p>
+                                <div id="mascot" class="mascot text-center">😺</div>
+                                <p id="mascot-message" class="text-sm italic text-center mt-1">...</p>
+                            </div>
+                            <div class="text-center">
+                                 <button id="retro-mode-button" class="button-base button-secondary">Retro Mode Lyd (Av/På)</button>
+                                 <p class="text-xs mt-1">(Krever interaksjon for å starte lyd)</p>
+                            </div>
+                            <div class="mt-6 border-t border-card pt-6 w-full text-center space-y-4">
+                                <h3 class="text-lg font-medium mb-3">Datahåndtering</h3>
+                                <div class="flex flex-wrap justify-center gap-3">
+                                     <button id="save-data-button" class="button-base button-secondary">Lagre Data Manuelt</button>
+                                     <button id="export-data-button" class="button-base button-secondary">Eksporter Data</button>
+                                     <button id="import-data-button" class="button-base button-secondary">Importer Data</button>
+                                     <input type="file" id="import-file-input" accept=".json" style="display: none;">
+                                </div>
+                                <p id="data-action-message" class="text-xs italic mt-2 h-4"></p>
+                            </div>
+                             <div class="mt-6 border-t border-card pt-6 w-full text-center">
+                                 <h3 class="text-lg font-medium mb-3">Bytt Tema Manuelt</h3>
+                                 <div class="flex flex-wrap justify-center gap-2">
+                                     <button class="button-base button-secondary theme-button text-xs" data-theme="kennyball">Kennyball</button>
+                                     <button class="button-base button-secondary theme-button text-xs" data-theme="nikko">Nikko</button>
+                                     <button class="button-base button-secondary theme-button text-xs" data-theme="klinkekule">Klinkekule</button>
+                                     <button class="button-base button-secondary theme-button text-xs" data-theme="helgrim">Helgrim</button>
+                                     <button class="button-base button-secondary theme-button text-xs" data-theme="krrroppekatt">Krrroppekatt</button>
+                                     <button class="button-base button-secondary theme-button text-xs" data-theme="beerbjorn">Beerbjorn</button>
+                                     <button class="button-base button-secondary theme-button text-xs" data-theme="dardna">Dardna</button>
+                                     <button class="button-base button-secondary theme-button text-xs" data-theme="skytebasen">Skytebasen</button>
+                                 </div>
+                             </div>
+                        </div>
+                    </div>
+                 </section>
+                 <section id="admin-view" class="view-section admin-only">
+                    <div class="card bg-card border-card">
+                        <h2 class="text-2xl font-semibold mb-4 text-header">Admin Panel</h2>
+                        <!-- Existing XP Adjust -->
+                        <div class="space-y-4 mb-6 pb-6 border-b border-card">
+                            <h3 class="text-lg font-medium text-accent">Juster XP</h3>
+                            <div>
+                                <label for="admin-user-select">Velg bruker:</label>
+                                <select id="admin-user-select" name="admin-user-select" required>
+                                    <option value="" disabled selected>-- Laster brukere --</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="admin-xp-amount">XP Poeng (+/-):</label>
+                                <input type="number" id="admin-xp-amount" name="admin-xp-amount" step="1" placeholder="F.eks. 100 eller -50">
+                            </div>
+                            <div class="flex gap-4">
+                                <button id="admin-give-xp-button" class="button-base button-primary flex-grow">Juster XP</button>
+                            </div>
+                            <p id="admin-action-message" class="text-xs italic mt-2 h-4"></p>
+                        </div>
+                        <!-- NEW: Add User Section -->
+                        <div class="space-y-4">
+                             <h3 class="text-lg font-medium text-accent">Legg til Ny Bruker</h3>
+                             <div>
+                                 <label for="admin-new-username">Nytt Brukernavn:</label>
+                                 <input type="text" id="admin-new-username" placeholder="F.eks. NySpiller123" required>
+                                 <!-- Optional: Add input for initial theme or password structure if needed -->
+                             </div>
+                             <div class="flex gap-4">
+                                <button id="admin-add-user-button" class="button-base button-primary flex-grow">Legg til Bruker</button>
+                            </div>
+                             <p id="admin-add-user-message" class="text-xs italic mt-2 h-4"></p>
+                        </div>
+                    </div>
+                 </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="snoop-modal" class="snoop-modal">
+        <div class="snoop-modal-content bg-card border-card relative">
+            <button id="close-snoop-modal" class="absolute top-2 right-3 text-2xl font-bold hover:opacity-70">&times;</button>
+            <h3 id="snoop-modal-title" class="text-xl font-semibold mb-4 text-header">Info for...</h3>
+            <div id="snoop-user-info" class="mb-4 text-sm border-b border-card pb-3 space-y-1">
+                 <p><strong>Nivå:</strong> <span id="snoop-level">--</span></p>
+                 <p><strong>XP (Total):</strong> <span id="snoop-xp">--</span></p>
+                 <p><strong>Sist innlogget:</strong> <span id="snoop-last-login">--</span></p>
+                 <p><strong>Siste humør:</strong> <span id="snoop-last-mood">--</span></p>
+                 <p class="mt-2 pt-2 border-t border-dashed border-card"><strong>Siste 7 dager:</strong></p>
+                 <p>Løftet Volum: <span id="snoop-7d-volume">--</span> kg</p>
+                 <p>Gått Distanse: <span id="snoop-7d-km">--</span> km</p>
+                 <p>Opptjent XP: <span id="snoop-7d-xp">--</span></p>
+            </div>
+             <div id="snoop-achievements-section" class="mb-4 text-sm border-b border-card pb-3 space-y-1">
+                 <h5 class="text-md font-semibold text-accent">Achievements:</h5>
+                 <ul id="snoop-achievements" class="list-disc list-inside text-xs space-y-1">
+                      <li class="italic">Laster...</li>
+                 </ul>
+            </div>
+            <h4 class="text-lg font-semibold mb-2 text-accent">Siste 7 dagers logg:</h4>
+            <div id="snoop-modal-log" class="text-sm space-y-3 max-h-48 overflow-y-auto">
+                <p class="italic">Laster logg...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="level-up-indicator" class="level-up-indicator">
+        LEVEL UP!
+        <span id="level-up-new-level" class="block text-lg"></span>
+    </div>
+
+    <footer class="mt-12 text-center text-sm opacity-70">
+        <p>Fit G4FL Prototype v3.6 - Chat Re-added + Live Mode</p>
+    </footer>
+
+<!-- END OF PART 2 --><!-- START OF PART 3 -->
+
+    <!-- Firebase SDK (Compat version) -->
+
+
+    <script defer>
+        // --- CONFIGURATION ---
+        const levelNames = [
+            "Energiløs Latsabb", "Sovende Komapost", "Løftesky Skybert", "Feit Fjøsgris", "7 Days to Diet", // 0-4
+            "Lat Ark-ologist", "Star Sloth", "Løpe? Nei Takk", "Vandrende Flesk", "Kaffekoppknekker", // 5-9
+            "Sliten Speider", "Jogge-Sabotør", "Dørstokkmila Veteran", "Kardio-Kylling", "Feit Survivor (ARK-edition)", // 10-14
+            "Couch Potato 9000", "Zombie-Mat (7 Days)", "Fett i Farlig Fart", "Uninstall Gym Sim", "Dronken Drikkebelte", // 15-19
+            "Pulsklokka Streika", "Dinosaurus Feitus (ARK)", "Biceps? Aldri Hørt Om", "Fett i Fritt Fall", "Kompost-latens", // 20-24
+            "Rage-Quit Jogger", "Loot-crate Lurker", "Lat Spacefarer", "Aerob-Nekter", "Kondis Kollapse", // 25-29
+            "Treig Tek Rex (ARK)", "Matpause-Mester", "Fettfinger Fighter", "Treningsnekter Prime", "Fett-tralla på turbo", // 30-34
+            "Kantinemage Commander", "Jaktet av Fett-Raptors", "Fitness Feilstart", "Space-Burger Banditt", "Vegetar-Zombie", // 35-39
+            "Fettbrann Slukker", "Varmmat-Veteran", "Overopphetet Kosedress", "Fettgass Farmer", "Fettfiasko Frontier", // 40-44
+            "Push-up Pøbel", "Inaktiv Inventar", "Pustepause Pilot", "Kebab-Kriger", "Star Citizen, Feit Edition", // 45-49
+            "Latskapens Overlevende", "Fettlaget Explorer", "Base Builder med Burgerbehov", "Ark-Huleboer med Hoffnarrmage", "Løpende Latmann", // 50-54
+            "T-Rex med T-skjorte for Trang", "Burpee-Flopper", "Zombiebait med Zumbaangst", "Kardio-Katastrofe", "Dino-napper", // 55-59
+            "Løftefobi Lord", "Dodgeball Deserter", "Frityr-Forsvarer", "ARK-noob med ab-crunch-anfall", "Kroppsvekt-Kunstner (uten øving)", // 60-64
+            "Feitmen i Rustning", "Gassmaskeglad Gomp (7DTD)", "Loot før Lungene", "Fettkontroller i Freefall", "Star Pølsegutt", // 65-69
+            "Pre-workout Panikk", "Hopp over Leg Day", "Kraftig Karbonader", "Fettfredag Fanatiker", "Latmus Prime", // 70-74
+            "Fettbuffer Brawler", "Benkpress Beklager", "Sliten Scout (SC)", "Feitest i Fracture Space", "Muffinsmodus Mekaniker", // 75-79
+            "Grumpy Gains Gnome", "Struts med Stepskrrekk", "Fettfeita Fleet Commander", "Knestående Kraftløs", "Lat Lystløgner", // 80-84
+            "Proteinshake Posør", "Helsefare i Hengekøya", "Superslow Survivor", "Fettfarm Farmer Joe", "Dodge ‘n’ Donuts", // 85-89
+            "Vaffel-Veteran", "Zzz-Zone Zero", "Lat på Lave Oksygennivå", "Kraftløs Krigshelt", "Lårskjelver på Lavgear", // 90-94
+            "Fett og Farlig i Fjellheimen", "Fett-Enhanced Fighter", "Løpemotstander med Lathetslisens", "Squatless Wonder", "Commander Couchpotato", // 95-99
+            "Dodo-Mester Deluxe", "Sulten Bronto på Sukkersjokk", "Kardio-Kråke fra Klatrefobi", "Lat Loot Llama (importert)", "Fettbasert Frontsoldat", // 100-104
+            "Star Citizen med Stramme Skritt", "Proteinfiendtlig Pteranodon", "Zombieknekt uten Knekk", "Oksygensvett Overlevingsnarkis", "Dino-Dansende Dessertglad", // 105-109
+            "Jetpack-Jan med Jojo-diett", "Pølsepress-Pilot", "Kraftløs Kompanjong (ARK Tribe)", "Feit Feltsjef", "Staminasvak Scout", // 110-114
+            "Muffins-Muncher med Minigun", "Lat Latamaster (7DTD versjon)", "Hodeskalle-Henger i Hengekøya", "Tyrannosaurus Trøtt", "Sofa-Strateg i Starbase", // 115-119
+            "Donut-Dodo Defender", "Lat-Giga Tammer", "Slapp i Saddle (riding skill: 0)", "Proteinpanisk Pyroman", "Fettfiksert Feral Fighter", // 120-124
+            "Fettfiendtlig Flyer", "Buffless Bronto-Bro", "Skritteller-Sabotør", "Svimete Sabertooth", "KardioKollapser i Kommandodrakt", // 125-129
+            "Fett-Heavy Heavy", "Lat-Lasher i Light Armor", "Feit Fenrisulv-Fanger", "Couch-Clinger Commander", "Pustepause Paladin", // 130-134
+            "Staminasviker i Skyttergrav", "Dessert-Diplomat i Doom", "Svett i Spacetaxi", "Dodo-Fencer", "Bronto-Bouncer med Bakrus", // 135-139
+            "Fettpanser Pilot", "Slowmo Sniper (ARK PvE)", "Sulten Survivor med Sideskjegg", "Stappfull Starfarer", "Latstyrt Loot Looter", // 140-144
+            "Guffen Giga med Godterisporer", "Svett i Saddelen", "Fettarmada General", "Nap Queen of 7 Days", "Sko-fobisk Speider", // 145-149
+            "Deigete Dino-Dompteur", "Buffløse Blærefanter", "Frityr-Favoritten i Fjellbase", "Knebeskytter-Klovn", "Proteinprell på Patrol", // 150-154
+            "Respawn-Rebell uten Rundkast", "Fritids-Feiter med Fjernkontroll", "Jetpack-Jabba", "Fettfelgen Fighter", "Dodo-Diver med Donutdiett", // 155-159
+            "Loot-Lat på Langtur", "Sitronskviset Scout", "Bronto-Bergenser", "Kraftløs Cargopilot", "Zombie-Zoner på Zumba", // 160-164
+            "Saft-Sippende Stegosaurus", "Fett & Furious", "Fettforkledd Farlighet", "Skrittsparedinosaur", "Dessertdrevne Droner", // 165-169
+            "Fleskefin Fighter", "Kardiosky Kaptein", "Feit Feltrapportør", "Løpebort-Legende", "Fettstartet Freelancer", // 170-174
+            "Skulderklapp-samler", "Zzz-bunker Befaler", "Avocado-Aggressor", "Kalorikarusell Kaprer", "Matpakke-Monark", // 175-179
+            "Treige Tek Tyrant", "Cheeto-Chomper fra Citadel", "Svettbaron i Stjernehavn", "Treningsvegrer-Veteran", "Late Loot Lord", // 180-184
+            "Dino Dørvakt", "Fett i Fart", "Planleggingsfase-Pegasus", "Muffinsmaskin Mekanikus", "SofaSovereign", // 185-189
+            "Latigatoren", "KakeKommandør", "Pauseskjerm-Paladin", "Fettbasert Fangevokter", "Narkoberry-Narkoman", // 190-194
+            "Tungtbelastet Tanktop-Tyrann", "Dodo-Diktator", "Bronto-Bamse med Bicepsfrykt", "Loot-Legende på Lavpuls", "Fettfyrst av Fjernlandet", // 195-199
+            "Trøtt Tyrannodausaurus", "Sulten Star Whale", "Latsabb på månebase", "Dodo Dronning", "Feit Fjellzombie", // 200-204
+            "Bambi på proteinshakes", "Fettberg i romdrakt", "Kokt Kompysalat", "Svett Spino med ølbæltet", "Hardcore Hamsterhjul", // 205-209
+            "Bronto som nekta cardio", "Nøtt i Navesgane", "Rømt fra Rec Room", "Dronedame med donuts", "Lat med laserkanon", // 210-214
+            "Kompressor-Karen", "Buff, men bare i cutscenes", "AFK Apokalypse", "Ryggsøyle av gummi", "DoomGuy på donutdiett", // 215-219
+            "Narkobear i PvE", "Feit Raptor med Crocs", "Vinglete Voxelkonge", "NAKEN OG RASENDE", "T-rex med treningsnekrose", // 220-224
+            "Fettleif på hoverboard", "Stakkarslig Space Viking", "Muskelmugg i minibuss", "Kvernet Quetzal", "Pinglepilot i pyro-pyjamas", // 225-229
+            "Proteinpudderpresten", "Zombiegamp med glidematte", "Fettbryter 3000", "Spekkhogger på bootcamp", "Dronemage i feil univers", // 230-234
+            "BrontoBootyMaster", "Skjelvende skrotløfter", "Latmannsløype Legend", "Sovemodus aktivert", "Baconbaron i baris", // 235-239
+            "Tordenfeit Torsk", "PT med PTSD fra leg day", "Sushisamurai på diett", "Feit Fenrisulv med fetisj", "Kompis med knekk i korsryggen", // 240-244
+            "Kardio? Nei takk-Kongen", "Dodo Dommedagsprofet", "Dinosaur i dvale", "Snuble-soldat fra Star Marine", "Gåstol Gladiator", // 245-249
+            "PvZ: Plantet seg fast", "Aimbot, men for sofaen", "Tjukk i trynet og stolt", "7 Days to Die(t)", "Fettfiasko på fjelltur", // 250-254
+            "Overlevelsesekspert i BH", "Prustende Pteranodon", "ProteinPadde", "Zed med Zoomfobi", "Chill-Rex på sykkelsete", // 255-259
+            "Fettfarm Farmer", "Rømmende Rumpelunk", "Bootybaron fra Bronto-Bay", "Latlifter fra Lavlandet", "Sulten Sabertooth", // 260-264
+            "Kakekriger i kamuflasje", "Ræv-Robot i Rust", "Laktosekriger uten plan", "Treningsnarkoleptiker", "Fettsekk i frontlinja", // 265-269
+            "Helikopter-Henning", "Zombiefett med sixpack", "Dino med dødsangst for burpees", "Latskalle fra Lazarus-planet", "Flåsende Fettfirefly", // 270-274
+            "Dødens DonutDisippel", "PvP på PizzaPlanet", "Kroppsvekt: JA", "Spacetrooper med strekk", "Proteinrakett med mageknip", // 275-279
+            "Fetttrøbbel i Fjordzone", "Svett i Subnautica", "Donut-Dronning fra Duna", "Latlux Lurker", "Fettfuru på måneskinsjogg", // 280-284
+            "Suppe-Spino i superundertøy", "Loothoarder med lårkrampe", "Latskapens Overlord", "BootcampBaron av Bø", "Fettfrekvens 9000", // 285-289
+            "Buff bak en skjerm", "Dødlig Donutdiplomat", "Steinalder Sumo", "StaminaSkrue", "LatZilla vs KetoKong", // 290-294
+            "Dodo med dumbbells", "Fettflukt fra Fjellbase", "Ragequit-Runner", "PoopMaster i PaleoPark", "Leg Day Lost Soul", // 295-299
+            "Proteinshake med promille", "Astma-Raptor på el-scooter", "Dodo med donuts og Daddy-issues", "Buff bronto med BHen feil vei", "Zombiekondis som snorker", // 300-304
+            "Dverg-Titan med chipsavhengighet", "Fettfløyel i full galopp", "Laserpung på lavkarbo", "Muskel-Jabba fra Mos Espa", "Triceps-T-rex med tomme tanker", // 305-309
+            "Snuble-Sabertooth i speedo", "Hardcore-Høne med hjulbeinsfobi", "Kardio-Kraken på karaokebar", "Fettmedaljong i feil univers", "PvE-Pungdyr med pollenallergi", // 310-314
+            "Benchpress-Bjørn på bensin", "Kremtoppen fra Katastrofeklanen", "Løpe-Latmask i latex", "Buff-Zombie med boccia-belter", "Kalori-Kalkun fra kantina", // 315-319
+            "Lattersjokk i leggings", "Dinosaur med depresjon og dadler", "Svett-Space Marine på sparkesykkel", "Støl i stjernebassenget", "Magemuskel-Mammut med melkeskvulp", // 320-324
+            "Overkokt Oviraptor med OCD", "Tyggegummi-Tyrannosaurus", "Donut-Dronning på do", "Rage-Rein i rottetruse", "Oppblåsbar Oppsynsmann", // 325-329
+            "Kardio-Kålorm med kampinstinkt", "Fettfiesta på Fjelltoppen", "Zombie med Zumba-angst", "Superlat Søppeldrager", "Fett-fett-fettere fra Frøya", // 330-334
+            "Protein-Potet i power-pose", "Stjerne-støgg og stolt", "Lårklask-Lama i latex", "Vræle-Viking på vektreduksjon", "Space-Bacon på springmarsj", // 335-339
+            "Donut-Diplodocus med diabetes", "Fettknapp på full guffe", "Kardio-Kompost med krøll", "Latterlig Lat-Lynx", "Gal-Giga med godteskjegg", // 340-344
+            "Buff og Blind på samme tid", "Fett-Emo på elipse", "PvP-Pingvin med panikk", "Ryggsekk med rocka rumpe", "Gass-Gigant på grøtdiett", // 345-349
+            "Biceps-Bamse med barnebukse", "Muskelfjert fra Månebase", "Bronto-Ballong med blodsukkerfall", "Elg-Eminem i eksistensiell krise", "Latsabb Luchador", // 350-354
+            "Galaktisk Gummibjørn", "Pølse-PT fra Pluto", "Spekkgiraff på snur", "Fett-fotograf med fettfilter", "Twerk-T-rex med tinnitus", // 355-359
+            "Muskelsløv Muldvarp", "Karbo-Krokodille i krise", "Svette-Sith med situpsfobi", "Fettlokk i fartsdress", "Donut-Direktør på deadline", // 360-364
+            "Rølpe-Rav i romdrakt", "Late Lunge-Lama", "BrontoBiff med badering", "Smågodt-Sentinel", "DildoDodo med dumbbells", // 365-369
+            "Fett-Utpost i feil galakse", "Muskelmygg i Minecraft", "Ræv-Raptordans", "Kardio-Kylling med kraftig kjøttfeber", "Overkokt Orangutang", // 370-374
+            "Zombielår med zitzapper", "Fettfeber på Fjortisnivå", "Musklene sover – hjernen og", "Sitrondiett-Spacecowboy", "Svette-Skorpion med skammekrok", // 375-379
+            "Benpresse-Bjørn med bleie", "Fett-Bard i bikini", "Donut-Dreper med dystopi-diett", "Astro-Latsabb på lavblods", "Muskelfritt Marsvin", // 380-384
+            "Kalorikrig med knyttneve", "Pinglepilot med papirlår", "Tynnfeit Triceratops", "Proteinpirat på plattform", "Space-Kebab med kastestjerner", // 385-389
+            "Fettvulkan med frityrfett", "Mageknip-Mantis på monsterenergi", "Kake-Kriger fra Kandisbyen", "Burpee-baron med brokk", "Kardio-Klovn med krokfot", // 390-394
+            "PvE-Prest med pumptrack-prestisje", "Rage-rein med ryggsår", "Donut-Spion med dobbelt hake", "Fett-Apokalypse nå", "Muskelsvinnets Messias", // 395-399
+            "Kardio-Kadaverdans", "Fett-Fury fra Fjæra", "ZombieSquats med zombietid", "Lårskjelver med laservåpen", "Proteinpudding på pansersko", // 400-404
+            "Kalori-Kanari", "Fett-sfinx med stretchbukse", "Triceps-Tyrann med T-rex-trøkk", "Zumba-Zombie på Zoloft", "BrontoBokser på baris", // 405-409
+            "FettFiasko fra Fortnite", "Hormon-Hamster på Hula-hoop", "Svette-Sergeant på sofa", "Kardio-Koala med cupcake-fobi", "Gasspingvin med gains", // 410-414
+            "Latlapp i latex", "Pølseprins fra Prolapsplanet", "Donut-godzilla med diabetes deluxe", "Muskeldiktator i Minecraft-misjon", "Protein-Pikachu på puddingkur", // 415-419
+            "Fettbombe med føtter", "DinoDandy med dustete dumbbells", "Rævrevnet Robot", "Galaktisk Gulasj-Gamer", "PvP-Panda på paracet", // 420-424
+            "Fett-fantom i Fortnite-fly", "Zombiefjes på fjelltur", "Muskel-Marit med melkesyre", "Oppblåsbar Ostepopp", "Kardio-Karate Kid", // 425-429
+            "Dinosaur med dataspilldepresjon", "Lat-Kommando med kakekanon", "Fettpåfyll fra Fiasko-planet", "Dumbbell-Dobby i dobeltdose", "FjertFit 9000", // 430-434
+            "Kardio-Krøpling i krykker", "Trenings-Taco på tur", "Ræv-Raider fra Rust", "Fett-Oracle med Oculus Rift", "DodoDiktator med dumbbells", // 435-439
+            "Zombie med Zeppeliner", "Kosedyr-Kung Fu", "Donut-deadlift Disaster", "Muskelflukt fra Mummidalen", "Latterlig Latmageddon", // 440-444
+            "PvE-Potet i panicmode", "Kardio-Kalkun fra Katteplaneten", "Protein-Preben på puddingprosjekt", "Fett-Fantom i Froskehopp", "Dumbbell-Direktør med databriller", // 445-449
+            "Triceps-Tragedie på tredemølle", "Magefett-Megatron", "Svett-Spacelord på sofaferd", "DodoDoom på donuts og despair", "Fettspøkelse i Fortnite", // 450-454
+            "Kardio-Krise-Kristian", "Muskeldamp fra Minecraft-minen", "PvE-Prinsessa på pølseløft", "Fettflagg i flammer", "Dumbbell-Deimos i dorullrustning", // 455-459
+            "Kalori-Kriger fra Kuskitkroken", "Fett-Kake-Krutt", "Svett-Zebra på zzz-piller", "Muskel-Mekker på melkekur", "DodoDommedag", // 460-464
+            "Kardio-Klovn i krabbegir", "ProteinPiraya fra Planet P", "Fett-Fiesta på fullstendig feil planet", "Snuble-Saber-Tooth i snøstorm", "Zombieløft med ZZZ-top", // 465-469
+            "Lat-Lord av Lavt Stamina", "T-rex-Tøffing med treningsvegring", "Donut-Predator på Pogo-stick", "KardioKlaus med kakekaos", "Muskel-Mutant i muffinsmodus", // 470-474
+            "Fett-Bastion av Bobleplast", "Snorke-Sith på snappekur", "Protein-Pappskalle på Planet Fit", "Pølse-Paladin fra PvP-Paradiset", "Fett-Fabel fra Fjellfiaskoen", // 475-479
+            "Latskapens Lorax", "Donut-Demon i DodoDrakt", "FettFighter 4000", "Kardio-Kongle på karbo-kick", "Muskler i minus med monster-trøkk", // 480-484
+            "Rage-Raider på Ribbebuffet", "Fettmekker fra Fjordby", "Dumbbell-Drage med diett-trøbbel", "Svette-Sau fra StarBase", "Bronto-Beist på burgerkurs", // 485-489
+            "Zumba-Zebra med zombielus", "Kardio-Karambola", "Feit Farao fra Fortnite", "Lat-Lynx med laserbiceps", "Muffin-Master fra Muskelverden", // 490-494
+            "PvE-Pølse i pappkropp", "Fett-Kriger i Fortnite-Fjell", "Donut-Darklord med dadelbiceps", "ZombieZillah på Zzz-top", // 495-499
+            "Overpowered Super Gamer! 💪🕹️👑" // 500
+        ];
+        const MAX_LEVEL = 500;
+        const levelEmojis = { 0: '🌱', 10: '⭐', 20: '💪', 30: '🔥', 40: '🏆', 50: '👑', 75: '💎', 100: '🚀', 150: '🌌', 200: '🌠', 250: '💫', 300: '✨', 400: '🤯', 499: '💯' };
+        // Added 10 new tips + originals
+        const dailyTips = ["Husk: Å løfte vekter er bare å overbevise tyngdekraften om å ta en pause. Vær overbevisende!", "Svette er bare fettceller som gråter. Få dem til å hulke!", "Pro Tip: Hvis du ikke klarer å åpne syltetøyglasset etter armøkta, har du trent riktig. Bestill pizza.", "Husk å puste under trening! Oksygen er viktig for... vel, alt. Spesielt for å klage over hvor tungt det er.", "Motivasjon: Tenk på alle hatersene! ...Eller bare tenk på at sofaen føles MYE bedre etter en økt.", "Kardio? Mener du løfting av vekter i høyt tempo?", "'Rest day' betyr ikke 'cheat day'. Med mindre 'cheat' betyr å spise en ekstra brokkoli.", "Vann er viktig! 100% av unnskyldningen for å ta en pause.", "Ikke hopp over leg day! Du vil vel ikke se ut som en kylling på steroider?", "Fremgang er fremgang. Selv det å gå fra sofaen til kjøleskapet er bevegelse!", "Muskelsmerter er bare svakhet som forlater kroppen. Eller så løftet du feil. 50/50 sjanse.", "Rom ble ikke bygget på en dag. Men de trente sikkert bein hver dag.", "Drikk proteinshake etter trening! Det er som en high-five til musklene dine.", "Sett deg mål! F.eks: Å kunne bære alle handleposene på én gang.", "Selv den tregeste skilpadden fullfører løpet... spesielt hvis haren stopper for å ta selfies.", "Husk å varme opp! Kalde muskler er like nyttige som en Star Citizen-server uten spillere.", "Dagens mål: Løft noe så tungt at du ser dine forfedre... eller i det minste stjerner.", "Ikke sammenlign deg med andre på gymmet. De har sikkert jukset med save files, som i ARK.", "Riktig teknikk > tunge vekter. Med mindre du vil låse opp 'Sykehusbesøk'-achievementen.", "Kaffe før trening? Ja takk! Koffein er naturens egen pre-workout, bedre enn Gulag-kaffen i Warzone.", "Spilte du for lenge i går? En kort økt i dag er bedre enn å bli raidet av dårlig samvittighet.", "Husk at selv i 7 Days To Die må du ut og bevege deg for å finne loot. Tenk på trening som looting for helsa.", "Star Citizen loading screen = perfekt tid for et sett med push-ups!", "Ikke la helsebaren din bli like lav som etter en boss fight i ARK.", "Tenk på trening som grinding. XP-en du får er ekte!", "Mer utholdenhet IRL = mer utholdenhet til lange gaming sessions.", "Du kan ikke respawne helsa di. Ta vare på den du har!", "Husk at 'stamina' ikke bare er en bar i spillet.", "Å løfte vekter er som å legge skill points i 'Strength'.", "Vær like dedikert til trening som til å bygge den perfekte basen i ARK eller 7D2D."];
+        // Added 10 new motivation messages + originals
+        const motivationMessages = [ "Bruker du mer tid på å optimalisere gaming-riggen enn kroppen din? Bare lurer...", "Husk at 'grinding' i spill gir virtuelle rewards. Grinding på gymmen gir... vel, mindre 'deg' å drasse på.", "Du trenger ikke bli verdensmester i løfting, bare litt mindre mester i sofagriseri.", "Tenk på det: Hver rep er en 'fuck you' til den buksa som ikke passer lenger.", "Du er rå i gaming! Men kan du løpe fra en zombie IRL (som i 7 Days to Die)? Kanskje på tide å øve litt?", "Hvorfor går du ikke ned i vekt? Kanskje fordi musa veier mindre enn manualen?", "Vær fornøyd med deg selv! Men vær *litt* mer fornøyd etter en økt. Det er lov.", "Du knuser det i Warzone, men hva med krigen mot dørstokkmila?", "Husk: Å være 'Overpowered' i spill er kult. Å være 'Overvektig' er... mindre kult.", "Selv en 'Noob' kan løfte noe. Start der.", "Tenk på neste LAN: Vil du være han som trenger to stoler, eller han som *kan* bære PC-en sin selv?", "Du klarer å raide i 10 timer, men klarer ikke 10 push-ups? Prioriteringer, min venn!", "Hver svettedråpe er en achievement unlocked: 'Overlevde Trening'.", "Du trenger ikke sixpack. Men å kunne se tærne dine igjen hadde vært en fin bonus, ikke sant?", "Gaming-skills er overførbare! Disiplin, fokus, utholdenhet... bruk det på trening!", "Husk: Kroppen din er den ultimate spillkonsollen. Ikke la den samle støv som en gammel PS2.", "Litt trening nå, så smaker den ølen/pizzaen/brusen *enda* bedre etterpå. Vitenskap!", "Du er ikke lat, du er bare i 'energy saving mode'. På tide å bytte til 'performance mode'!", "Se på det som å levle opp den viktigste karakteren av alle: Deg selv.", "Ok, du er kanskje ikke raskest på 60-meteren. Men du kan bli raskere enn han du var i går!", "Er 'buffering' det eneste buffe du får om dagen?", "Husk: Sofaen er lava! ...eller i hvert fall en vortex som suger til seg gainz.", "Du vet du bør trene når du blir andpusten av å gå til postkassa.", "Sixpack er overvurdert. Men å ikke ha 'one-pack' er et greit mål.", "Husk den følelsen etter trening? Nei? Da er det på tide å føle den igjen!", "Du bruker timer på å finne den perfekte builden i spillet. Hva med 'builden' din IRL?", "Husk: 'Jeg starter i morgen' er den største løgnen siden 'The cake is a lie'.", "Selv om du har 'god-mode' i spill, har ikke kroppen din det. Ta vare på den!", "Husk: Å løfte vekter er billigere enn å kjøpe nye klær hele tiden.", "Du trenger ikke løpe maraton. Bare løp fra dine egne unnskyldninger.", "Husk: Styrke handler ikke bare om muskler, men om å faktisk *gidde*.", "Du vet hva som er tyngre enn den vekta? Angeren over å ikke ha trent.", "Husk: Å bestille mat via app er ikke kardio.", "Du klarer å trykke 'Continue' etter en wipe i ARK. Du klarer å ta ett sett til.", "Husk: 'Respawn point' finnes ikke på sykehuset.", "Den eneste 'easy mode' i livet er den du skrur av når du begynner å trene.", "Husk: Å se på treningsvideoer på YouTube teller ikke som trening.", "Du trenger ikke være Arnold. Bare prøv å ikke se ut som Jabba the Hutt.", "Husk: Fremgang, ikke perfeksjon. Med mindre du er en robot. Er du en robot?", "Du vet du må trene når 'Player 2 has entered the game' refererer til dobbelthaka di.", "Husk: Å klage brenner null kalorier.", "Du klarer å lære komplekse spillmekanikker i Star Citizen. Du klarer å lære knebøy.", "Husk: Den beste tiden å starte var i går. Den nest beste er NÅ.", "Du trenger ikke elske trening. Bare hat å være i dårlig form *mer*.", "Husk: Hver økt er en investering i din fremtidige gaming-utholdenhet.", "Du vet det er på tide når trapper føles som en boss fight.", "Husk: 'Lag' er ikke en unnskyldning for dårlig kondis.", "Du er sjefen over din egen kropp. Ikke la sofaen være nestleder.", "Husk: Selv en kort økt er uendelig mye bedre enn ingen økt.", "Slutt å lese dette og kom deg på trening! Gulagen venter ikke!", "Er du like redd for manualer som for en Alpha Raptor?", "Bygg muskler, ikke bare en fancy base i 7 Days.", "Tenk på vektene som loot drops for kroppen din.", "'One more rep!' er som 'One more turn!' i Civ, bare sunnere.", "Kroppen din er ikke proceduralt generert, du må bygge den selv!", "Mindre tid på load screens, mer tid på løfting!", "Ikke la 'body fat percentage' bli høyere enn din K/D ratio.", "Trening: Den eneste grinden der du faktisk blir sterkere IRL.", "Dropp unnskyldningene som du dropper dårlig loot.", "Er sofagropen din dypere enn Mariana-gropen?" ];
+        const XP_PER_KM = 50;
+        // Function to calculate base XP for lifting exercises
+        function calculateLiftXP(kilos, reps, sets) { return Math.round((kilos * reps * sets) / 10); }
+        // Function to calculate base XP for walking
+        function calculateWalkXP(km) { return Math.round(km * XP_PER_KM); }
+        // Function to adjust XP based on mood/effort (Example multipliers)
+        function adjustXPForMood(baseXP, mood) {
+             const multipliers = {
+                great: 0.9,  // Lett (-10% XP)
+                good: 1.0,   // Normal (Base XP)
+                ok: 1.05,  // Litt tungt (+5% XP)
+                meh: 1.1,   // Tungt (+10% XP)
+                bad: 1.2    // Blytungt (+20% XP)
+             };
+             return Math.max(1, Math.round(baseXP * (multipliers[mood] || 1.0))); // Ensure at least 1 XP
+        }
+        function xpForLevel(level) { if (level <= 1) return 0; return Math.floor(150 * Math.pow(level - 1, 1.8)); }
+        const xpThresholds = Array.from({ length: MAX_LEVEL }, (_, i) => xpForLevel(i + 1));
+        // TODO: Define actual achievement criteria based on user request
+        const achievementList = [
+            { id: 'lvl5', name: 'Nivå 5!', description: 'Nådde nivå 5. Du er ikke lenger en total potet!', criteria: (user) => user.level >= 5 },
+            { id: 'lvl10', name: 'Nivå 10!', description: 'Nådde nivå 10. Velkommen til klubben!', criteria: (user) => user.level >= 10 },
+            { id: 'lvl25', name: 'Nivå 25!', description: 'Nådde nivå 25. Halvveis til legende?', criteria: (user) => user.level >= 25 },
+            { id: 'lvl50', name: 'Nivå 50!', description: 'Halvveis til hundre (nesten)!', criteria: (user) => user.level >= 50 },
+            { id: 'first_workout', name: 'Første Økt Logget', description: 'Du tok det første steget!', criteria: (user) => user.log?.length >= 1 },
+            { id: 'ten_workouts', name: 'Ti Økter Fullført', description: 'Du begynner å få teken på det!', criteria: (user) => user.stats?.totalWorkouts >= 10 },
+            { id: 'walk10k', name: 'Gått 10 km', description: 'Du har gått minst 10 km totalt.', criteria: (user) => user.stats?.totalKm >= 10 },
+            { id: 'lift10ton', name: 'Løftet 10 Tonn', description: 'Du har løftet over 10 000 kg totalt!', criteria: (user) => user.stats?.totalVolume >= 10000 },
+            { id: 'snooper', name: 'Nysgjerrigper', description: 'Du brukte Snoke-knappen for første gang.', criteria: (user) => user.stats?.timesSnooped >= 1 },
+            { id: 'theme_explorer', name: 'Tema-Utforsker', description: 'Du har prøvd minst 3 forskjellige temaer.', criteria: (user) => user.stats?.themesTried?.size >= 3 },
+            { id: 'ark_taming', name: 'Første Gange?', description: 'Fullførte din første "taming"-økt (logget en økt).', criteria: (user) => user.log?.length >= 1 },
+            { id: 'zombie_survival_7', name: 'Overlevd Horde Night', description: 'Logget økter 7 dager på rad (Ukes-streak!).', criteria: (user) => user.streak >= 7 },
+            { id: 'star_citizen_cargo_heavy', name: 'Cargo Hauler (Tung)', description: 'Løftet over 50 tonn totalt (50 000 kg).', criteria: (user) => user.stats?.totalVolume >= 50000 },
+            { id: 'warzone_gulag_winner', name: 'Gulag Vinner', description: 'Kom tilbake etter en hviledag og logget en økt.', criteria: (user) => user.log?.length > 1 && user.streak === 1 },
+            { id: 'ark_rex_strength', name: 'Sterk som en Rex', description: 'Løftet over 100 tonn totalt.', criteria: (user) => user.stats?.totalVolume >= 100000 },
+            // --- GROUP ACHIEVEMENTS (Placeholder - requires different logic) ---
+            { id: 'group_lift_1M', name: 'Felles Løft: 1 Million!', description: 'Gjengen har samlet løftet 1 000 000 kg!', criteria: (users) => false },
+            { id: 'group_walk_earth', name: 'Felles Gåtur: Jorden Rundt?', description: 'Gjengen har samlet gått 40 075 km!', criteria: (users) => false },
+            { id: 'group_xp_over9000', name: 'Felles XP: It\'s Over 9000!', description: 'Gjengen har samlet over 9000 XP!', criteria: (users) => false },
+        ]; // Shortened list - more needed for 50+15
+
+        // --- DOM ELEMENTS ---
+        let body, appContent, loginForm, userSelect, passwordInput, loggedInUserDisplay, logoutButton, notificationArea, themeButtons, viewButtons, viewSections, workoutForm, exerciseTypeSelect, customExerciseNameField, customExerciseInput, kgField, repsField, setsField, kmField, currentSessionList, completeWorkoutButton, levelDisplay, levelEmojiDisplay, xpCurrentDisplay, xpNextLevelDisplay, xpTotalDisplay, xpProgressBar, logEntriesContainer, userListDisplay, levelUpIndicator, levelUpNewLevel, mascotElement, mascotMessage, streakCounter, retroModeButton, dailyTipContainer, snoopModal, snoopModalTitle, snoopModalLog, closeSnoopModalButton, saveDataButton, exportDataButton, importDataButton, importFileInput, dataActionMessage, motivationButton, demoModeIndicator, checkStatButton, scoreboardList, achievementsListContainer, workoutCommentInput, moodSelector, adminOnlyElements, adminUserSelect, adminXpAmountInput, adminGiveXpButton, adminActionMessage;
+        let adminNewUsernameInput, adminAddUserButton, adminAddUserMessage; // Admin Add User elements
+        let chatView, chatMessages, chatForm, chatInput, chatLoadingMsg; // Chat elements
+
+        // Function to assign DOM elements
+        function initializeDOMElements() {
+             console.log("Attempting to initialize DOM elements...");
+             body = document.body; appContent = document.getElementById('app-content'); loginForm = document.getElementById('login-form'); userSelect = document.getElementById('user-select'); passwordInput = document.getElementById('password-input'); loggedInUserDisplay = document.getElementById('logged-in-user'); logoutButton = document.getElementById('logout-button'); notificationArea = document.getElementById('notification-area'); themeButtons = document.querySelectorAll('.theme-button'); viewButtons = document.querySelectorAll('.view-button'); viewSections = document.querySelectorAll('.view-section'); workoutForm = document.getElementById('workout-form'); exerciseTypeSelect = document.getElementById('exercise-type'); customExerciseNameField = document.getElementById('custom-exercise-name-field'); customExerciseInput = document.getElementById('exercise'); kgField = document.querySelector('.form-field-kg'); repsField = document.querySelector('.form-field-reps'); setsField = document.querySelector('.form-field-sets'); kmField = document.querySelector('.form-field-km'); currentSessionList = document.getElementById('current-session-list'); completeWorkoutButton = document.getElementById('complete-workout-button'); levelDisplay = document.getElementById('level-display'); levelEmojiDisplay = document.getElementById('level-emoji'); xpCurrentDisplay = document.getElementById('xp-current'); xpNextLevelDisplay = document.getElementById('xp-next-level'); xpTotalDisplay = document.getElementById('xp-total'); xpProgressBar = document.getElementById('xp-progress-bar'); logEntriesContainer = document.getElementById('log-entries'); userListDisplay = document.getElementById('user-list-display'); levelUpIndicator = document.getElementById('level-up-indicator'); levelUpNewLevel = document.getElementById('level-up-new-level'); mascotElement = document.getElementById('mascot'); mascotMessage = document.getElementById('mascot-message'); streakCounter = document.getElementById('streak-counter'); retroModeButton = document.getElementById('retro-mode-button'); dailyTipContainer = document.getElementById('daily-tip-container'); snoopModal = document.getElementById('snoop-modal'); snoopModalTitle = document.getElementById('snoop-modal-title'); snoopModalLog = document.getElementById('snoop-modal-log'); closeSnoopModalButton = document.getElementById('close-snoop-modal'); saveDataButton = document.getElementById('save-data-button'); exportDataButton = document.getElementById('export-data-button'); importDataButton = document.getElementById('import-data-button'); importFileInput = document.getElementById('import-file-input'); dataActionMessage = document.getElementById('data-action-message'); motivationButton = document.getElementById('motivation-button'); demoModeIndicator = document.getElementById('demo-mode-indicator'); checkStatButton = document.getElementById('check-stat-button'); scoreboardList = document.getElementById('scoreboard-list'); achievementsListContainer = document.getElementById('achievements-list'); workoutCommentInput = document.getElementById('workout-comment'); moodSelector = document.querySelector('.mood-selector'); adminOnlyElements = document.querySelectorAll('.admin-only'); adminUserSelect = document.getElementById('admin-user-select'); adminXpAmountInput = document.getElementById('admin-xp-amount'); adminGiveXpButton = document.getElementById('admin-give-xp-button'); adminActionMessage = document.getElementById('admin-action-message');
+             adminNewUsernameInput = document.getElementById('admin-new-username'); adminAddUserButton = document.getElementById('admin-add-user-button'); adminAddUserMessage = document.getElementById('admin-add-user-message');
+             chatView = document.getElementById('chat-view'); chatMessages = document.getElementById('chat-messages'); chatForm = document.getElementById('chat-form'); chatInput = document.getElementById('chat-input'); chatLoadingMsg = document.getElementById('chat-loading-msg');
+
+             if (!loginForm) { console.error("!!! CRITICAL ERROR: loginForm element was NOT found during initialization!"); }
+             else { console.log("DOM elements initialized successfully (loginForm found)."); }
+        }
+
+        // --- STATE ---
+        let users = {}; let currentUser = null; let currentWorkout = []; let retroSoundEnabled = false; let synth = null;
+        let isDemoMode = false; // Forced to false
+        let firebaseInitialized = false; let db = null; let usersRef = null; let chatRef = null;
+        let initialDataLoaded = false; let chatListenerAttached = false;
+
+        // --- FIREBASE CONFIG ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyDUC7mBCT4R_t3buPLDrDA-GQWGmYEyBnw", // <--- HUSK Å BYTTE!
+          authDomain: "gf4l-ca7e2.firebaseapp.com",
+          databaseURL: "https://gf4l-ca7e2-default-rtdb.europe-west1.firebasedatabase.app",
+          projectId: "gf4l-ca7e2",
+          storageBucket: "gf4l-ca7e2.appspot.com",
+          messagingSenderId: "893712610424",
+          appId: "1:893712610424:web:5b0db3683d1aff2667298d",
+        };
+
+        // --- INITIALIZATION ---
+        function initializeApp() {
+            console.log("Initializing App v3.6 - Chat Re-added + Live Mode...");
+            initializeDOMElements();
+            // calculateTargetLaunchDate(); // Removed call - no longer needed
+            // initializeCountdown(); // Removed call
+            if (demoModeIndicator) demoModeIndicator.textContent = "Live Mode - Kobler til Firebase..."; // Set directly
+            isDemoMode = false; // Explicitly set live mode
+            displayDailyTip();
+            initializeFirebase(); // Initialize Firebase directly
+            console.log("Calling setupBaseEventListeners from initializeApp...");
+            setupBaseEventListeners(); // Call this last
+        }
+
+        // Separate Firebase Initialization
+        function initializeFirebase() {
+            if (firebaseInitialized) { console.log("Firebase already initialized."); return; }
+            try {
+                console.log("Attempting to initialize Firebase connection...");
+                firebase.initializeApp(firebaseConfig);
+                console.log("Firebase app initialized successfully.");
+                db = firebase.database();
+                console.log("Firebase Realtime Database service obtained:", db ? 'OK' : 'FEILET');
+                usersRef = db.ref('users');
+                chatRef = db.ref('chatMessages'); // RE-ADDED chat reference
+                console.log("Firebase usersRef obtained:", usersRef ? 'OK' : 'FEILET');
+                console.log("Firebase chatRef obtained:", chatRef ? 'OK' : 'FEILET');
+                firebaseInitialized = true;
+                console.log("Firebase Initialized flag set to true.");
+                loadUsersFromFirebase();
+                initializeChat(); // RE-ADDED chat listener initialization
+            } catch (error) {
+                 console.error("Firebase Initialization Failed:", error);
+                 alert("Kunne ikke koble til Firebase! Prøver å laste lokale data som nødløsning.");
+                 firebaseInitialized = false;
+                 loadDefaultUsersLocally();
+                 processLoadedUsers();
+            }
+        }
+
+        // --- DEMO MODE & COUNTDOWN (REMOVED/DISABLED) ---
+        // function calculateTargetLaunchDate() {}
+        // function initializeCountdown() {}
+        // function updateCountdown() {}
+        // function unlockApp() {} // Kept for reference, but not used in forced live mode
+
+        // --- END OF PART 3 ---// --- START OF PART 4 ---
+
+        // --- USER DATA HANDLING (Includes populateUserSelect definition) ---
+        // Load users from Firebase RTDB and listen for real-time updates
+         function loadUsersFromFirebase() {
+            if (isDemoMode || !firebaseInitialized || !usersRef) { console.warn("Skipping Firebase load (Demo Mode, Firebase not initialized, or usersRef is null)."); return; }
+            console.log("Attempting to attach Firebase listener to /users...");
+            initialDataLoaded = false; // Reset flag
+
+            usersRef.on('value', (snapshot) => {
+                try {
+                    console.log("--- Firebase 'value' event triggered! ---");
+                    const dataFromFirebase = snapshot.val();
+                    console.log("Snapshot value received:", dataFromFirebase);
+
+                    const defaultUserStructure = { xp: 0, level: 1, log: [], theme: 'klinkekule', lastWorkoutDate: null, streak: 0, snooped: false, lastLogin: null, achievements: [], stats: { totalWorkouts: 0, totalKm: 0, totalVolume: 0, themesTried: [], timesSnooped: 0, lastMood: null, importedData: false, exportedData: false } };
+
+                    if (dataFromFirebase === null) {
+                        console.warn("Firebase '/users' is empty or null.");
+                        if (!initialDataLoaded) {
+                            console.log("Attempting to initialize Firebase with default users...");
+                            const defaultUsersForFirebase = getDefaultUsers();
+                            Object.values(defaultUsersForFirebase).forEach(user => { /* Convert Sets */ if (user.stats?.themesTried instanceof Set) { user.stats.themesTried = Array.from(user.stats.themesTried); } else if (!Array.isArray(user.stats?.themesTried)) { user.stats.themesTried = []; } if (!Array.isArray(user.log)) user.log = []; if (!Array.isArray(user.achievements)) user.achievements = []; });
+                            usersRef.set(defaultUsersForFirebase)
+                                .then(() => { console.log("Default users successfully set in Firebase."); initialDataLoaded = true; /* Listener will re-trigger */ })
+                                .catch(error => { console.error("Failed to set default users in Firebase:", error); alert("Klarte ikke initialisere database. Bruker lokale standarddata."); loadDefaultUsersLocally(); processLoadedUsers(); });
+                            return;
+                        } else {
+                            console.log("Data became null after initial load. Resetting local users.");
+                            loadDefaultUsersLocally();
+                            processLoadedUsers();
+                        }
+                    } else {
+                        console.log("Processing data received from Firebase...");
+                        users = dataFromFirebase;
+                        Object.keys(users).forEach(username => { /* Data Migration/Structure/Type Conversion */ const defaultClone = JSON.parse(JSON.stringify(defaultUserStructure)); users[username] = { ...defaultClone, ...users[username] }; users[username].stats = { ...defaultClone.stats, ...(users[username].stats || {}) }; if (Array.isArray(users[username].stats.themesTried)) { users[username].stats.themesTried = new Set(users[username].stats.themesTried); } else { users[username].stats.themesTried = new Set(); } if (!Array.isArray(users[username].log)) users[username].log = []; if (!Array.isArray(users[username].achievements)) users[username].achievements = []; });
+                        Object.keys(users).forEach(username => { updateUserLevel(username); });
+                        initialDataLoaded = true;
+                        console.log("Calling processLoadedUsers from Firebase listener...");
+                        processLoadedUsers();
+                    }
+                } catch(error) {
+                     console.error("Error inside Firebase 'value' callback:", error);
+                }
+            }, (error) => {
+                console.error("Firebase read failed (listener error):", error);
+                alert("Kunne ikke lese data fra Firebase. Viser lokale standarddata.");
+                loadDefaultUsersLocally();
+                processLoadedUsers();
+            });
+            console.log("Firebase listener attached.");
+        }
+
+        // Helper function to get default users structure
+        function getDefaultUsers() {
+            const defaultUserStructure = { xp: 0, level: 1, log: [], theme: 'klinkekule', lastWorkoutDate: null, streak: 0, snooped: false, lastLogin: null, achievements: [], stats: { totalWorkouts: 0, totalKm: 0, totalVolume: 0, themesTried: new Set(), timesSnooped: 0, lastMood: null, importedData: false, exportedData: false } };
+             return {
+                 "Helgrim": { ...JSON.parse(JSON.stringify(defaultUserStructure)), theme: 'helgrim', stats: {...JSON.parse(JSON.stringify(defaultUserStructure.stats)), themesTried: new Set(['helgrim'])} },
+                 "krrroppekatt": { ...JSON.parse(JSON.stringify(defaultUserStructure)), theme: 'krrroppekatt', stats: {...JSON.parse(JSON.stringify(defaultUserStructure.stats)), themesTried: new Set(['krrroppekatt'])} },
+                 "Kennyball": { ...JSON.parse(JSON.stringify(defaultUserStructure)), theme: 'kennyball', stats: {...JSON.parse(JSON.stringify(defaultUserStructure.stats)), themesTried: new Set(['kennyball'])} },
+                 "Beerbjorn": { ...JSON.parse(JSON.stringify(defaultUserStructure)), theme: 'beerbjorn', stats: {...JSON.parse(JSON.stringify(defaultUserStructure.stats)), themesTried: new Set(['beerbjorn'])} },
+                 "Dardna": { ...JSON.parse(JSON.stringify(defaultUserStructure)), theme: 'dardna', stats: {...JSON.parse(JSON.stringify(defaultUserStructure.stats)), themesTried: new Set(['dardna'])} },
+                 "Nikko": { ...JSON.parse(JSON.stringify(defaultUserStructure)), theme: 'nikko', stats: {...JSON.parse(JSON.stringify(defaultUserStructure.stats)), themesTried: new Set(['nikko'])} },
+                 "Skytebasen": { ...JSON.parse(JSON.stringify(defaultUserStructure)), theme: 'skytebasen', stats: {...JSON.parse(JSON.stringify(defaultUserStructure.stats)), themesTried: new Set(['skytebasen'])} },
+                 "Klinkekule": { ...JSON.parse(JSON.stringify(defaultUserStructure)), theme: 'klinkekule', stats: {...JSON.parse(JSON.stringify(defaultUserStructure.stats)), themesTried: new Set(['klinkekule'])} }
+             };
+        }
+
+         // Load default users locally (for Demo Mode or Firebase failure)
+         function loadDefaultUsersLocally() {
+             console.log("Loading default users locally.");
+             users = getDefaultUsers();
+             Object.keys(users).forEach(username => { updateUserLevel(username); });
+             initialDataLoaded = true; // Mark as loaded
+         }
+
+         // Central function to process loaded data (from Firebase or local) and update UI
+         function processLoadedUsers() {
+             console.log("processLoadedUsers called");
+             initializeAppUI(); // This now populates selects, renders lists etc.
+
+             // Restore last logged-in user selection *after* UI is populated
+             const lastUser = localStorage.getItem('fitnessAppLastUser');
+             if (lastUser && users && users[lastUser]) {
+                 if (userSelect) userSelect.value = lastUser;
+             }
+
+             // Refresh UI specific to the currently logged-in user, if any
+             if (currentUser && users[currentUser]) {
+                 console.log(`Refreshing UI for logged in user: ${currentUser}`);
+                 updateUI();
+                 renderLog();
+                 renderAchievements();
+             } else if (currentUser && !users[currentUser]) {
+                 // Current user doesn't exist in loaded data, force logout
+                 console.warn(`Currently logged in user ${currentUser} not found in data. Logging out.`);
+                 logoutUser();
+             }
+             // Ensure correct login state UI is applied after processing data
+             // This also handles Admin visibility and re-renders user list
+             processLoginLogoutUIUpdate();
+         }
+
+        // Set up UI elements that depend on user data being loaded/updated
+         function initializeAppUI() {
+            console.log("Initializing/Refreshing App UI elements...");
+            if (!initialDataLoaded) { console.warn("initializeAppUI called before initial data load."); return; }
+
+            // Guard elements just in case
+            if (userSelect) populateUserSelect(); else console.error("userSelect not found");
+            if (adminUserSelect) populateAdminUserSelect(); else console.error("adminUserSelect not found");
+            if (userListDisplay) renderUserList(); else console.error("userListDisplay not found");
+            if (scoreboardList) renderScoreboard(); else console.error("scoreboardList not found");
+            if (achievementsListContainer) renderAchievements(); else console.error("achievementsListContainer not found");
+
+            updateWeeklyFeatures();
+
+             // Apply theme based on current state
+             if (currentUser && users[currentUser]?.theme) {
+                  setTheme(users[currentUser].theme);
+             } else {
+                 setTheme('klinkekule'); // Apply default theme if logged out
+             }
+         }
+
+         // Placed here, after initializeAppUI which calls it
+         function populateUserSelect() {
+            if (!userSelect) { console.error("populateUserSelect: userSelect element not found!"); return; }
+
+            console.log("Populating user select (Method 3). Users count:", Object.keys(users).length);
+
+            // Check if users is valid
+            if (typeof users !== 'object' || users === null || Object.keys(users).length === 0) {
+                console.warn("populateUserSelect: users object is empty or invalid. Clearing select.", users);
+                // Clear existing options using loop
+                while (userSelect.options.length > 0) {
+                    userSelect.remove(0);
+                }
+                // Add only the placeholder
+                const placeholder = document.createElement('option');
+                placeholder.value = "";
+                placeholder.textContent = "Laster... (Ingen data)";
+                placeholder.disabled = true;
+                placeholder.selected = true;
+                userSelect.appendChild(placeholder);
+                return;
+            }
+
+            const userKeys = Object.keys(users).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+            const currentSelection = userSelect.value; // Read current value BEFORE clearing
+
+            // Clear existing options using loop
+            while (userSelect.options.length > 0) {
+                userSelect.remove(0);
+            }
+            // Add the default "-- Velg bruker --" option first
+            const defaultOption = document.createElement('option');
+            defaultOption.value = "";
+            defaultOption.textContent = "-- Velg bruker --";
+            defaultOption.disabled = true;
+            defaultOption.selected = true; // Select it initially
+            userSelect.appendChild(defaultOption);
+
+            let foundSelection = false;
+            // Add user options AFTER the default one
+            userKeys.forEach(username => {
+                const option = document.createElement('option');
+                option.value = username;
+                option.textContent = username;
+                userSelect.appendChild(option); // Append user options AFTER the default one
+                if (username === currentSelection) foundSelection = true;
+            });
+
+            // Re-apply selection or default to placeholder
+            if (foundSelection && userKeys.includes(currentSelection)) {
+               userSelect.value = currentSelection;
+            } else {
+                userSelect.value = ""; // Select the "-- Velg bruker --" option
+                defaultOption.selected = true;
+            }
+
+            console.log("User select populated (Method 3). Final selected value:", userSelect.value);
+        }
+
+        // --- LOGIN / LOGOUT ---
+        function loginUser(username) {
+            console.log(`Attempting login for: ${username}`);
+            if (!users || !users[username]) { console.error(`Login failed: User ${username} not found in local cache.`); alert("Bruker ikke funnet. Prøv igjen om litt."); return; }
+            currentUser = username;
+            const nowISO = new Date().toISOString();
+            if (!isDemoMode && firebaseInitialized && usersRef) { // isDemoMode should always be false now
+                usersRef.child(currentUser).update({ lastLogin: nowISO })
+                    .then(() => console.log(`Updated lastLogin for ${currentUser} in RTDB.`))
+                    .catch(error => console.error(`Failed to update lastLogin for ${currentUser}:`, error));
+            } else {
+                 if(users[currentUser]) users[currentUser].lastLogin = nowISO;
+                 console.log("Firebase not ready?: Updated lastLogin locally only.");
+            }
+            localStorage.setItem('fitnessAppLastUser', currentUser);
+            if (passwordInput) passwordInput.value = '';
+            setTheme(users[currentUser].theme); // Applies theme and updates RTDB if needed
+            processLoginLogoutUIUpdate(); // Call centralized UI update
+            setActiveView('profile');
+            updateMascot(`Velkommen tilbake, ${currentUser}!`);
+            checkAndShowSnoopNotification(); // Reads from local 'users'
+            console.log(`Successfully logged in as ${currentUser}`);
+        }
+
+        function logoutUser() {
+             playButtonClickSound();
+             const loggedOutUser = currentUser;
+             currentUser = null;
+             localStorage.removeItem('fitnessAppLastUser'); // Clear last user on explicit logout
+             processLoginLogoutUIUpdate(); // Call centralized UI update
+             updateMascot(loggedOutUser ? `Logget ut, ${loggedOutUser}.` : 'Logget ut.');
+             if (notificationArea) notificationArea.classList.remove('show');
+             setActiveView('userlist'); // Go to user list view after logout
+             if (userSelect) userSelect.value = ""; // Reset user selection dropdown
+         }
+
+        // Centralized function to handle UI updates after login/logout/data load
+        // Includes fix for Snoop Button visibility
+        function processLoginLogoutUIUpdate() {
+            updateLoginStateUI(); // Toggles logged-in/out classes and button visibility
+            // Update user-specific UI elements if logged in
+            if (currentUser && users[currentUser]) {
+                 updateUI(); // Updates profile card (level, XP, streak)
+                 renderLog(); // Renders user's log entries
+                 renderAchievements(); // Renders user's achievements
+                 renderUserList(); // <-- Re-render user list AFTER login (shows snoop button)
+            } else {
+                 renderUserList(); // <-- Re-render user list AFTER logout (hides snoop button)
+            }
+             // Show/hide admin elements based on current user
+             toggleAdminElements(currentUser === "Helgrim");
+        }
+
+        // Updates general UI based on login state only
+        function updateLoginStateUI() {
+            if (!appContent || !loggedInUserDisplay || !logoutButton) { console.error("Login UI elements not found!"); return; }
+            console.log(`Updating login state UI. Current user: ${currentUser}`);
+            if (currentUser) {
+                appContent.classList.remove('logged-out');
+                appContent.classList.add('logged-in');
+                loggedInUserDisplay.textContent = `Innlogget som: ${currentUser}`;
+            } else {
+                appContent.classList.remove('logged-in');
+                appContent.classList.add('logged-out');
+                loggedInUserDisplay.textContent = '';
+            }
+        }
+
+        // Checks and displays snoop notification, resets flag
+        function checkAndShowSnoopNotification() {
+             if (!notificationArea) return;
+             // Make sure currentUser and user data exist before checking snooped flag
+             if (currentUser && users[currentUser]) {
+                 console.log(`Checking snoop status for ${currentUser}. Snooped flag: ${users[currentUser].snooped}`);
+                 if (users[currentUser].snooped) {
+                     notificationArea.textContent = `Psst, ${currentUser}! Noen har snoket på loggen din! 👀`;
+                     notificationArea.classList.add('show');
+                     // Reset the flag in Firebase if applicable
+                     if (!isDemoMode && firebaseInitialized && usersRef) { // isDemoMode should be false
+                         usersRef.child(currentUser).update({ snooped: false })
+                             .then(() => console.log(`Reset snooped flag for ${currentUser} in RTDB.`))
+                             .catch(error => console.error(`Failed to reset snooped flag for ${currentUser}:`, error));
+                     }
+                     // Also update locally immediately for UI responsiveness
+                     users[currentUser].snooped = false;
+                 } else {
+                     notificationArea.classList.remove('show');
+                 }
+             } else {
+                  // If no currentUser or user data, ensure notification is hidden
+                  notificationArea.classList.remove('show');
+             }
+         }
+
+        // --- END OF PART 4 ---// --- START OF PART 5 ---
+
+        // --- DATA MANAGEMENT ---
+        function displayDataActionMessage(message, success = true) {
+            if (!dataActionMessage) return;
+            dataActionMessage.textContent = message;
+            dataActionMessage.className = `text-xs italic mt-2 h-4 ${success ? 'text-green-500' : 'text-red-500'}`;
+            setTimeout(() => { if(dataActionMessage) dataActionMessage.textContent = ''; }, 3000);
+        }
+        // Data Mgmt Event listeners in setupBaseEventListeners
+
+        // --- MOTIVATION BUTTON ---
+        // Event listener in setupBaseEventListeners
+
+        // --- WEEKLY FEATURES ---
+        function updateWeeklyFeatures() {
+             // Logic related to weekly features, like showing the stats button on Fridays
+             if (!checkStatButton) return;
+             const today = new Date();
+             const isFriday = today.getDay() === 5; // 0=Sun, 1=Mon, ..., 5=Fri, 6=Sat
+             checkStatButton.classList.toggle('hidden', !isFriday);
+             // Could add more weekly resets or features here later
+        }
+        // Event listener for checkStatButton in setupBaseEventListeners
+
+        // --- MASCOT & DAILY TIP ---
+        function updateMascot(message) {
+             if (mascotMessage) mascotMessage.textContent = message;
+             if (mascotElement) {
+                 // Simple animation
+                 mascotElement.style.transform = 'scale(1.1)';
+                 setTimeout(() => {
+                     if (mascotElement) mascotElement.style.transform = 'scale(1)';
+                 }, 150);
+             }
+        }
+        function displayDailyTip() {
+             console.log("Attempting to display daily tip...");
+             if (!dailyTipContainer) { console.error("Daily tip container not found!"); return; }
+             if (!Array.isArray(dailyTips) || dailyTips.length === 0) { console.error('dailyTips array is invalid or empty!'); dailyTipContainer.textContent = "Feil: Kunne ikke laste dagens tips."; return; }
+             const today = new Date().toDateString(); let tip = "Laster...";
+             try {
+                 const lastTipDate = localStorage.getItem('fitnessAppLastTipDate');
+                 const cachedTip = localStorage.getItem('fitnessAppLastTip');
+                 if (lastTipDate === today && cachedTip) {
+                     tip = cachedTip; console.log("Using cached daily tip.");
+                 } else {
+                     const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+                     const tipIndex = dayOfYear % dailyTips.length;
+                     tip = `Dagens Tips: ${dailyTips[tipIndex]}`;
+                     console.log(`Generated new tip (Index ${tipIndex}): ${tip}`);
+                     localStorage.setItem('fitnessAppLastTip', tip);
+                     localStorage.setItem('fitnessAppLastTipDate', today);
+                     console.log("Cached new tip for today.");
+                 }
+                 dailyTipContainer.textContent = tip;
+                 console.log("Daily tip displayed.");
+             } catch (error) {
+                 console.error("Error displaying daily tip:", error);
+                 dailyTipContainer.textContent = "Kunne ikke laste tips pga. feil.";
+             }
+        }
+
+        // --- ADMIN FUNCTIONS ---
+        function toggleAdminElements(isAdmin) {
+             if (!adminOnlyElements) return;
+             console.log(`Toggling admin elements visibility: ${isAdmin}`);
+             adminOnlyElements.forEach(el => { if(el) el.style.display = isAdmin ? '' : 'none'; });
+             if (isAdmin) { populateAdminUserSelect(); }
+        }
+        function populateAdminUserSelect() { // Also populates the target user for XP adjustment
+             if (!adminUserSelect) return;
+             console.log("Populating admin user select.");
+             if (typeof users !== 'object' || users === null || Object.keys(users).length === 0) { adminUserSelect.innerHTML = '<option value="" disabled selected>Ingen brukere</option>'; return; }
+             const userKeys = Object.keys(users).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+             const currentSelection = adminUserSelect.value;
+             adminUserSelect.innerHTML = '<option value="" disabled>-- Velg bruker --</option>';
+             let foundSelection = false;
+             userKeys.forEach(username => { const option = document.createElement('option'); option.value = username; option.textContent = username; adminUserSelect.appendChild(option); if (username === currentSelection) foundSelection = true; });
+             if (foundSelection) { adminUserSelect.value = currentSelection; }
+             else { adminUserSelect.value = ""; }
+             if (!adminUserSelect.value) { const placeholderOption = adminUserSelect.querySelector('option[disabled]'); if (placeholderOption) placeholderOption.selected = true; }
+        }
+        function displayAdminActionMessage(targetElementId, message, success = true) {
+             const messageElement = document.getElementById(targetElementId);
+             if (!messageElement) return;
+             messageElement.textContent = message;
+             messageElement.className = `text-xs italic mt-2 h-4 ${success ? 'text-green-500' : 'text-red-500'}`;
+             setTimeout(() => { if(messageElement) messageElement.textContent = ''; }, 4000);
+        }
+
+        // NEW: Admin function to attempt adding a user
+        function adminAddNewUser() {
+            if (!firebaseInitialized || !usersRef) { displayAdminActionMessage('admin-add-user-message', "Firebase ikke klar.", false); return; }
+            if (currentUser !== "Helgrim") { displayAdminActionMessage('admin-add-user-message', "Uautorisert.", false); return; }
+            if (!adminNewUsernameInput) { console.error("Admin new username input not found"); return; }
+
+            const newUsername = adminNewUsernameInput.value.trim();
+            if (!newUsername) { displayAdminActionMessage('admin-add-user-message', "Brukernavn kan ikke være tomt.", false); return; }
+            // Basic validation: Check if user already exists (case-insensitive check might be better)
+            if (users[newUsername]) { displayAdminActionMessage('admin-add-user-message', `Bruker "${newUsername}" finnes allerede.`, false); return; }
+
+            console.log(`Admin attempting to add user: ${newUsername}`);
+            const defaultUserData = getDefaultUsers()["Klinkekule"]; // Use Klinkekule as template, maybe create a specific default?
+            const newUserObject = JSON.parse(JSON.stringify(defaultUserData)); // Deep clone
+            newUserObject.theme = 'klinkekule'; // Set default theme
+            newUserObject.stats.themesTried = ['klinkekule']; // Set initial theme as tried (as array for Firebase)
+            newUserObject.log = []; // Ensure empty log
+            newUserObject.achievements = []; // Ensure empty achievements
+
+            // Use set instead of update to create the new user node
+            usersRef.child(newUsername).set(newUserObject)
+                .then(() => {
+                    console.log(`Admin successfully added user: ${newUsername}`);
+                    displayAdminActionMessage('admin-add-user-message', `Bruker "${newUsername}" lagt til!`, true);
+                    adminNewUsernameInput.value = ''; // Clear input
+                    // The Firebase listener should automatically pick up the new user and update the UI
+                })
+                .catch(error => {
+                    console.error(`Admin failed to add user ${newUsername}:`, error);
+                    displayAdminActionMessage('admin-add-user-message', `Feil ved tillegging av bruker: ${error.message}`, false);
+                });
+        }
+        // Admin button listeners in setupBaseEventListeners
+
+        // --- CHAT FUNCTIONS (Re-added) ---
+        function initializeChat() {
+            // Removed isDemoMode check as app is forced live
+            if (!firebaseInitialized || !chatRef || chatListenerAttached) {
+                if (chatListenerAttached) console.warn("Chat listener already attached.");
+                else console.warn("Skipping chat initialization (Firebase issue).");
+                if(chatMessages && chatLoadingMsg) chatLoadingMsg.textContent = "Chat ikke tilgjengelig.";
+                return;
+            }
+            console.log("Initializing chat listener...");
+            chatListenerAttached = true; // Set flag
+
+            if (chatLoadingMsg) chatLoadingMsg.style.display = 'none'; // Hide loading message
+            if (chatMessages) chatMessages.innerHTML = ''; // Clear previous messages
+
+            // Listen for new messages (limit to last 50)
+            chatRef.limitToLast(50).on('child_added', (snapshot) => {
+                try {
+                    const messageData = snapshot.val();
+                    if (messageData && messageData.username && messageData.text) {
+                        displayChatMessage(messageData);
+                    } else {
+                        console.warn("Received incomplete chat message:", messageData);
+                    }
+                } catch (error) {
+                    console.error("Error processing chat message:", error);
+                }
+            }, (error) => {
+                console.error("Firebase chat listener error:", error);
+                 if(chatMessages && chatLoadingMsg) {
+                     if (chatLoadingMsg.parentNode === chatMessages) chatMessages.removeChild(chatLoadingMsg); // Remove if exists
+                     chatMessages.innerHTML = '<p class="text-center italic text-sm text-red-500 p-4">Kunne ikke laste chat.</p>';
+                 }
+                 chatListenerAttached = false; // Allow retry?
+            });
+        }
+
+        function displayChatMessage(message) {
+            if (!chatMessages) return;
+
+            // Remove loading message if present
+            if (chatLoadingMsg && chatLoadingMsg.parentNode === chatMessages) {
+                chatMessages.removeChild(chatLoadingMsg);
+            }
+
+            const messageElement = document.createElement('p');
+            messageElement.classList.add('new-message-animate'); // Add class for potential animation
+
+            const userElement = document.createElement('strong');
+            userElement.textContent = message.username + ':';
+            messageElement.appendChild(userElement);
+            messageElement.appendChild(document.createTextNode(' ' + message.text)); // Basic XSS handling
+
+             // Add timestamp
+             if (message.timestamp) {
+                 const timeSpan = document.createElement('span');
+                 timeSpan.className = 'text-xs opacity-60 ml-2';
+                 try {
+                     timeSpan.textContent = `(${new Date(message.timestamp).toLocaleTimeString('no-NO', { hour: '2-digit', minute: '2-digit' })})`;
+                 } catch(e) { /* Ignore invalid timestamp */ }
+                 messageElement.appendChild(timeSpan);
+             }
+
+             // Style self messages
+             if (message.username === currentUser) {
+                 messageElement.style.textAlign = 'right';
+                 // Could add a class like 'self-message' for more specific CSS
+             }
+
+            chatMessages.prepend(messageElement); // Prepend due to flex-col-reverse
+
+            // Remove animation class after animation completes
+            messageElement.addEventListener('animationend', () => {
+                 messageElement.classList.remove('new-message-animate');
+            });
+        }
+
+        // --- END OF PART 5 ---// --- START OF PART 6 ---
+
+        // --- Setup Event Listeners ---
+        // Contains ALL addEventListener calls
+        function setupBaseEventListeners() {
+            console.log("Setting up base event listeners...");
+            if (!body) { console.error("CRITICAL: Body element not available for listener setup."); return; }
+
+            // Tone.js interaction listener (Needed to enable audio context)
+            body.addEventListener('click', async () => {
+                if (!Tone.started) {
+                    try {
+                         await Tone.start();
+                         console.log("AudioContext started!");
+                         // Initialize synth only AFTER context is started
+                         if (!synth) { synth = new Tone.Synth().toDestination(); }
+                     } catch (e) { console.error("Could not start Tone.js AudioContext:", e); }
+                 }
+            }, { once: true });
+
+            // Theme buttons
+            if (themeButtons && themeButtons.length > 0) { themeButtons.forEach(button => { button.addEventListener('click', () => { playButtonClickSound(); setTheme(button.dataset.theme) }); }); } else { console.error("Theme buttons not found or empty!"); }
+
+            // View navigation buttons
+            if (viewButtons && viewButtons.length > 0) { viewButtons.forEach(button => { button.addEventListener('click', () => { playButtonClickSound(); setActiveView(button.dataset.view); }); }); } else { console.error("View buttons not found or empty!"); }
+
+            // Login form listener
+            console.log("Checking loginForm before adding listener:", loginForm);
+            if (loginForm) { loginForm.addEventListener('submit', (e) => { e.preventDefault(); const selectedUser = userSelect?.value; const enteredPassword = passwordInput?.value; if (!selectedUser) { alert("Velg bruker."); return; } if (!users[selectedUser]) { alert("Bruker ikke funnet (prøv å vent litt hvis appen nettopp lastet)."); return; } const correctPassword = selectedUser.charAt(0).toLowerCase(); if (enteredPassword && enteredPassword.toLowerCase() === correctPassword) { loginUser(selectedUser); } else { alert("Feil passord."); if(passwordInput) passwordInput.value = ''; if(passwordInput) passwordInput.focus(); } }); } else { console.error("loginForm element NOT FOUND when trying to add submit listener!"); }
+
+            // Logout button listener
+            console.log("Checking logoutButton before adding listener:", logoutButton);
+            if (logoutButton) { logoutButton.addEventListener('click', logoutUser); } else { console.error("logoutButton element NOT FOUND when trying to add click listener!"); }
+
+            // Workout form listeners
+            console.log("Checking exerciseTypeSelect before adding listener:", exerciseTypeSelect);
+            if (exerciseTypeSelect) { exerciseTypeSelect.addEventListener('change', () => { const type = exerciseTypeSelect.value; if(kgField) kgField.classList.toggle('active', type !== 'Gåtur'); if(repsField) repsField.classList.toggle('active', type !== 'Gåtur'); if(setsField) setsField.classList.toggle('active', type !== 'Gåtur'); if(kmField) kmField.classList.toggle('active', type === 'Gåtur'); if(customExerciseNameField) customExerciseNameField.style.display = (type === 'Annet') ? 'block' : 'none'; const kilosEl = document.getElementById('kilos'); const repsEl = document.getElementById('reps'); const setsEl = document.getElementById('sets'); const kmEl = document.getElementById('km'); if (kilosEl) kilosEl.required = (type !== 'Gåtur'); if(repsEl) repsEl.required = (type !== 'Gåtur'); if(setsEl) setsEl.required = (type !== 'Gåtur'); if(kmEl) kmEl.required = (type === 'Gåtur'); if(customExerciseInput) customExerciseInput.required = (type === 'Annet'); }); } else { console.error("Exercise Type Select not found!"); }
+            console.log("Checking workoutForm before adding listener:", workoutForm);
+            if (workoutForm) { workoutForm.addEventListener('submit', (e) => { e.preventDefault(); if (!currentUser) { alert("Logg inn først."); return; } playButtonClickSound(); const type = exerciseTypeSelect?.value; let name = type === 'Annet' ? customExerciseInput?.value.trim() : type; let kilos=0, reps=0, sets=0, km=0, baseXp=0, finalXp=0; let comment = workoutCommentInput?.value.trim() || ''; let mood = document.querySelector('input[name="mood"]:checked')?.value || 'good'; let data = { type, comment, mood }; if (type === 'Gåtur') { const kmInput = kmField?.querySelector('input'); km = parseFloat(kmInput?.value); if (isNaN(km) || km <= 0) { alert("Ugyldig km."); return; } baseXp = calculateWalkXP(km); data = { ...data, name: `Gåtur ${km} km`, km }; } else { const kgInput = kgField?.querySelector('input'); const repsInput = repsField?.querySelector('input'); const setsInput = setsField?.querySelector('input'); kilos = parseFloat(kgInput?.value); reps = parseInt(repsInput?.value, 10); sets = parseInt(setsInput?.value, 10); if (type === 'Annet' && !name) { alert("Skriv navn på øvelse."); return; } if (isNaN(kilos) || isNaN(reps) || isNaN(sets) || kilos < 0 || reps < 1 || sets < 1) { alert("Ugyldige verdier for kg/reps/sets."); return; } baseXp = calculateLiftXP(kilos, reps, sets); data = { ...data, name, kilos, reps, sets }; } finalXp = adjustXPForMood(baseXp, mood); data.xp = finalXp; currentWorkout.push(data); renderCurrentSession(); workoutForm.reset(); const moodGood = document.getElementById('mood-good'); if(moodGood) moodGood.checked = true; // Reset mood to default
+            if (type === 'Gåtur' && kmField) { const kmInput = kmField.querySelector('input'); if(kmInput) kmInput.value = ''; } else { if(kgField){ const kgInput = kgField.querySelector('input'); if(kgInput) kgInput.value = ''; } if(repsField){ const repsInput = repsField.querySelector('input'); if(repsInput) repsInput.value = ''; } if(setsField){ const setsInput = setsField.querySelector('input'); if(setsInput) setsInput.value = ''; } if(type === 'Annet' && customExerciseInput) customExerciseInput.value = ''; } if(exerciseTypeSelect) { exerciseTypeSelect.value = ''; exerciseTypeSelect.dispatchEvent(new Event('change')); exerciseTypeSelect.focus(); } if(completeWorkoutButton) completeWorkoutButton.disabled = false; updateMascot(`La til ${data.name}!`); }); } else { console.error("Workout Form not found!"); }
+            console.log("Checking completeWorkoutButton before adding listener:", completeWorkoutButton);
+            if (completeWorkoutButton) { completeWorkoutButton.addEventListener('click', () => { if (currentWorkout.length === 0 || !currentUser || !users[currentUser]) { console.warn("Complete workout button clicked but prerequisites not met."); return; } if (isDemoMode) { alert("Kan ikke lagre i Demo Mode (dette skal ikke skje)."); return; } if (!firebaseInitialized || !usersRef) { alert("Kan ikke lagre økt, ingen Firebase-tilkobling."); return; } playButtonClickSound(); console.log(`Completing workout for ${currentUser}`); const userData = users[currentUser]; const userDataRef = usersRef.child(currentUser); const sessionXP = currentWorkout.reduce((s, e) => s + (e.xp || 0), 0); // XP is now adjusted per exercise based on mood
+            const sessionVol = currentWorkout.reduce((s, e) => s + (e.type !== 'Gåtur' ? ((e.kilos || 0) * (e.reps || 0) * (e.sets || 0)) : 0), 0); const sessionKm = currentWorkout.reduce((s, e) => s + (e.type === 'Gåtur' ? (e.km || 0) : 0), 0); const sessionMood = currentWorkout.length > 0 ? currentWorkout[currentWorkout.length - 1].mood : 'ok'; const today = new Date().toISOString().split('T')[0]; let streak = userData.streak || 0; let lastDate = userData.lastWorkoutDate; if (lastDate && lastDate !== today) { const yesterday = new Date(Date.now() - 864e5).toISOString().split('T')[0]; streak = (lastDate === yesterday) ? streak + 1 : 1; } else if (!lastDate) { streak = 1; } const bonus = Math.min(1 + (streak - 1) * 0.1, 1.5); const finalSessionXP = Math.round(sessionXP * bonus); // Apply streak bonus to the total mood-adjusted XP
+            const entry = { date: new Date().toLocaleString('no-NO'), isoDate: today, exercises: [...currentWorkout], totalXP: finalSessionXP, totalVolume: sessionVol, mood: sessionMood, streakBonus: bonus > 1 ? `${((bonus - 1)*100).toFixed(0)}%` : null }; if (!Array.isArray(userData.log)) userData.log = []; userData.log.unshift(entry); const prevLvl = userData.level; userData.xp = (userData.xp || 0) + finalSessionXP; userData.lastWorkoutDate = today; userData.streak = streak; if (!userData.stats) userData.stats = { totalWorkouts: 0, totalKm: 0, totalVolume: 0, themesTried: new Set(), timesSnooped: 0, lastMood: null }; userData.stats.totalWorkouts = (userData.stats.totalWorkouts || 0) + 1; userData.stats.totalKm = (userData.stats.totalKm || 0) + sessionKm; userData.stats.totalVolume = (userData.stats.totalVolume || 0) + sessionVol; userData.stats.lastMood = sessionMood; updateUserLevel(currentUser); checkAchievements(currentUser); const userDataToSave = JSON.parse(JSON.stringify(userData)); if (userDataToSave.stats?.themesTried instanceof Set) { userDataToSave.stats.themesTried = Array.from(userDataToSave.stats.themesTried); } else if (!Array.isArray(userDataToSave.stats?.themesTried)) { userDataToSave.stats.themesTried = []; } userDataRef.set(userDataToSave) .then(() => { console.log(`User data for ${currentUser} saved to RTDB after workout.`); playXPSound(); if (userData.level > prevLvl) { triggerLevelUpAnimation(userData.level); playLevelUpSound(); updateMascot(`LEVEL UP, ${currentUser}! Nivå ${userData.level}! 🎉`); } else { updateMascot(`Økt fullført! +${finalSessionXP.toLocaleString('no-NO')} XP! ${streak > 1 ? `Streak: ${streak} dager!` : ''} 💪`); } currentWorkout = []; renderCurrentSession(); if (completeWorkoutButton) completeWorkoutButton.disabled = true; updateUI(); renderLog(); renderUserList(); renderScoreboard(); setActiveView('profile'); }) .catch(error => { console.error(`Failed to save user data for ${currentUser}:`, error); alert("Feil ved lagring av økt til Firebase!"); }); }); } else { console.error("Complete Workout button not found!"); }
+
+             // User list snoop listener
+            console.log("Checking userListDisplay before adding listener:", userListDisplay);
+             if (userListDisplay) { userListDisplay.addEventListener('click', (e) => { if (e.target.classList.contains('snoop-button')) { playButtonClickSound(); const targetUsername = e.target.dataset.username; if (targetUsername) { showSnoopedLog(targetUsername); if (!isDemoMode && firebaseInitialized && users[targetUsername] && usersRef) { usersRef.child(targetUsername).update({ snooped: true }).then(() => console.log(`Marked ${targetUsername} as snooped upon in RTDB.`)).catch(error => console.error(`Failed to mark ${targetUsername} as snooped:`, error)); if (currentUser && users[currentUser]) { usersRef.child(currentUser).child('stats/timesSnooped').set(firebase.database.ServerValue.increment(1)).then(() => { console.log(`Incremented timesSnooped for ${currentUser} in RTDB.`); if(users[currentUser]?.stats) users[currentUser].stats.timesSnooped = (users[currentUser].stats.timesSnooped || 0) + 1; checkAchievements(currentUser); }).catch(error => console.error(`Failed to increment timesSnooped for ${currentUser}:`, error)); } } else { if (users[targetUsername]) users[targetUsername].snooped = true; if (currentUser && users[currentUser]?.stats) { users[currentUser].stats.timesSnooped = (users[currentUser].stats.timesSnooped || 0) + 1; checkAchievements(currentUser); } } console.log(`${currentUser || 'Noen'} snoket på ${targetUsername}`); } } }); } else { console.error("User List Display not found!"); }
+
+            // Admin button listeners
+            console.log("Checking adminGiveXpButton before adding listener:", adminGiveXpButton);
+             if (adminGiveXpButton) { adminGiveXpButton.addEventListener('click', () => { playButtonClickSound(); if (!firebaseInitialized || !usersRef) { displayAdminActionMessage('admin-action-message', "Firebase ikke klar.", false); return; } if (currentUser !== "Helgrim") { displayAdminActionMessage('admin-action-message', "Uautorisert.", false); return; } const targetUsername = adminUserSelect?.value; const xpAmountStr = adminXpAmountInput?.value; if (!targetUsername) { displayAdminActionMessage('admin-action-message', "Velg en bruker.", false); return; } if (!xpAmountStr) { displayAdminActionMessage('admin-action-message', "Skriv inn XP-mengde.", false); return; } const xpAmount = parseInt(xpAmountStr, 10); if (isNaN(xpAmount)) { displayAdminActionMessage('admin-action-message', "Ugyldig XP-mengde.", false); return; } const targetUserRef = usersRef.child(targetUsername); targetUserRef.child('xp').once('value', (snapshot) => { const currentXp = snapshot.val() || 0; const newXp = Math.max(0, currentXp + xpAmount); console.log(`Admin: Setting XP for ${targetUsername} from ${currentXp} to ${newXp}`); targetUserRef.update({ xp: newXp }).then(() => { displayAdminActionMessage('admin-action-message', `${xpAmount >= 0 ? 'Ga' : 'Fjernet'} ${Math.abs(xpAmount)} XP ${xpAmount >= 0 ? 'til' : 'fra'} ${targetUsername}. Ny total: ${newXp}`, true); if (adminXpAmountInput) adminXpAmountInput.value = ''; }).catch(error => { console.error(`Admin: Failed to set XP for ${targetUsername}:`, error); displayAdminActionMessage('admin-action-message', `Feil ved oppdatering av XP for ${targetUsername}.`, false); }); }).catch(error => { console.error(`Admin: Failed to read current XP for ${targetUsername}:`, error); displayAdminActionMessage('admin-action-message', `Kunne ikke hente nåværende XP for ${targetUsername}.`, false); }); }); } else { console.warn("Admin Give XP button not found (this might be ok if user isn't admin)."); }
+
+            // NEW: Admin Add User Button Listener
+            console.log("Checking adminAddUserButton before adding listener:", adminAddUserButton);
+            if (adminAddUserButton) { adminAddUserButton.addEventListener('click', () => { playButtonClickSound(); adminAddNewUser(); }); } else { console.warn("Admin Add User button not found (this might be ok if user isn't admin)."); }
+
+
+             // Data management buttons
+             console.log("Checking saveDataButton before adding listener:", saveDataButton);
+             if (saveDataButton) { saveDataButton.addEventListener('click', () => { playButtonClickSound(); if (isDemoMode) { displayDataActionMessage("Lagring deaktivert i Demo Mode!", false); return; } if (!firebaseInitialized) { displayDataActionMessage("Firebase ikke tilkoblet!", false); return; } displayDataActionMessage("Data lagres automatisk via Firebase!", true); }); } else { console.error("Save Data button not found!"); }
+             console.log("Checking exportDataButton before adding listener:", exportDataButton);
+             if (exportDataButton) { exportDataButton.addEventListener('click', () => { playButtonClickSound(); if(currentUser && users[currentUser]?.stats) { users[currentUser].stats.exportedData = true; checkAchievements(currentUser); if (!isDemoMode && firebaseInitialized && usersRef) { usersRef.child(currentUser).child('stats/exportedData').set(true).catch(err => console.error("Failed to update exportedData flag in RTDB", err)); } } try { const dataToExport = JSON.parse(JSON.stringify(users)); Object.values(dataToExport).forEach(user => { if (user.stats?.themesTried instanceof Set) { user.stats.themesTried = Array.from(user.stats.themesTried); } else if (!Array.isArray(user.stats?.themesTried)) { user.stats.themesTried = []; } }); const dataStr = JSON.stringify(dataToExport, null, 2); const blob = new Blob([dataStr], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `fit_g4fl_data_${new Date().toISOString().split('T')[0]}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); displayDataActionMessage("Data eksportert!", true); } catch (error) { console.error("Export error:", error); displayDataActionMessage("Eksportfeil!", false); } }); } else { console.error("Export Data button not found!"); }
+             console.log("Checking importDataButton before adding listener:", importDataButton);
+             if (importDataButton) { importDataButton.addEventListener('click', () => { playButtonClickSound(); if (isDemoMode) { alert("Import er deaktivert i Demo Mode."); return; } if (!firebaseInitialized) { alert("Kan ikke importere, Firebase ikke tilkoblet."); return; } if (importFileInput) importFileInput.click(); }); } else { console.error("Import Data button not found!"); }
+             console.log("Checking importFileInput before adding listener:", importFileInput);
+             if (importFileInput) { importFileInput.addEventListener('change', (event) => { /* Import logic */ const file = event.target.files[0]; if (!file) return; if (!confirm("Sikker på import? Dette overskriver ALL data i Firebase.")) { importFileInput.value = ''; return; } const reader = new FileReader(); reader.onload = (e) => { try { const importedUsers = JSON.parse(e.target.result); if (typeof importedUsers !== 'object' || importedUsers === null || !Object.keys(importedUsers).some(key => getDefaultUsers().hasOwnProperty(key))) { throw new Error("Ugyldig datastruktur i filen."); } const dataToImport = JSON.parse(JSON.stringify(importedUsers)); Object.values(dataToImport).forEach(user => { const defaultUserStructure = { xp: 0, level: 1, log: [], theme: 'klinkekule', lastWorkoutDate: null, streak: 0, snooped: false, lastLogin: null, achievements: [], stats: { totalWorkouts: 0, totalKm: 0, totalVolume: 0, themesTried: [], timesSnooped: 0, lastMood: null, importedData: false, exportedData: false } }; user = { ...JSON.parse(JSON.stringify(defaultUserStructure)), ...user }; user.stats = { ...JSON.parse(JSON.stringify(defaultUserStructure.stats)), ...(user.stats || {}) }; if (user.stats?.themesTried instanceof Set) { user.stats.themesTried = Array.from(user.stats.themesTried); } else if (!Array.isArray(user.stats?.themesTried)) { user.stats.themesTried = []; } if (!Array.isArray(user.log)) user.log = []; if (!Array.isArray(user.achievements)) user.achievements = []; }); if(usersRef) { usersRef.set(dataToImport).then(() => { displayDataActionMessage("Data importert til Firebase!", true); alert("Data importert! Appen vil nå bruke den nye dataen."); if(currentUser && users[currentUser]?.stats) { users[currentUser].stats.importedData = true; checkAchievements(currentUser); usersRef.child(currentUser).child('stats/importedData').set(true).catch(err => console.error("Failed to update importedData flag", err)); } }).catch(error => { console.error("Firebase import error:", error); displayDataActionMessage(`Importfeil: ${error.message}`, false); alert(`Importfeil: ${error.message}`); }); } else { alert("Firebase ref not available for import."); } } catch (error) { console.error("Import file parse error:", error); displayDataActionMessage(`Importfeil: ${error.message}`, false); alert(`Importfeil: ${error.message}`); } finally { if (importFileInput) importFileInput.value = ''; } }; reader.onerror = (e) => { console.error("File read error:", e); displayDataActionMessage("Fil-lesefeil.", false); alert("Kunne ikke lese filen."); if(importFileInput) importFileInput.value = ''; }; reader.readAsText(file); }); } else { console.error("Import File Input not found!"); }
+
+            // Snoop modal listeners
+             console.log("Checking closeSnoopModalButton before adding listener:", closeSnoopModalButton);
+             if (closeSnoopModalButton) { closeSnoopModalButton.addEventListener('click', () => { playButtonClickSound(); if(snoopModal) snoopModal.classList.remove('show'); }); } else { console.error("Close Snoop Modal button not found!"); }
+             console.log("Checking snoopModal before adding listener:", snoopModal);
+             if (snoopModal) { snoopModal.addEventListener('click', (e) => { if (e.target === snoopModal) { playButtonClickSound(); snoopModal.classList.remove('show'); } }); } else { console.error("Snoop Modal element not found!"); }
+
+            // Retro sound button
+             console.log("Checking retroModeButton before adding listener:", retroModeButton);
+             if (retroModeButton) { retroModeButton.addEventListener('click', () => { retroSoundEnabled = !retroSoundEnabled; retroModeButton.textContent = `Retro Mode Lyd (${retroSoundEnabled ? 'På' : 'Av'})`; updateMascot(retroSoundEnabled ? "8-bit lyd aktivert!" : "Moderne lydmodus."); playButtonClickSound(); }); } else { console.error("Retro Mode button not found!"); }
+
+            // Motivation button
+             console.log("Checking motivationButton before adding listener:", motivationButton);
+             if (motivationButton) { motivationButton.addEventListener('click', () => { playButtonClickSound(); const randomIndex = Math.floor(Math.random() * motivationMessages.length); const randomMessage = motivationMessages[randomIndex]; updateMascot(randomMessage); }); } else { console.error("Motivation button not found!"); }
+
+             // Weekly stats button
+             console.log("Checking checkStatButton before adding listener:", checkStatButton);
+             if (checkStatButton) { checkStatButton.addEventListener('click', () => { playButtonClickSound(); renderScoreboard(); setActiveView('scoreboard'); }); } else { console.warn("Check Stat button not found (hidden initially)."); }
+
+             // Chat form listener (Re-added)
+             console.log("Checking chatForm before adding listener:", chatForm);
+             if (chatForm) {
+                 chatForm.addEventListener('submit', (e) => {
+                     e.preventDefault();
+                     if (!firebaseInitialized || !chatRef) { alert("Chat er ikke tilgjengelig (Firebase-feil)."); return; }
+                     if (!currentUser) { alert("Du må være logget inn for å chatte."); return; }
+                     if (!chatInput) { console.error("Chat input not found"); return; }
+
+                     const messageText = chatInput.value.trim();
+                     if (messageText && messageText.length > 0 && messageText.length <= 280) {
+                         const newMessage = {
+                             username: currentUser,
+                             text: messageText,
+                             timestamp: firebase.database.ServerValue.TIMESTAMP
+                         };
+                         chatRef.push(newMessage)
+                             .then(() => { if (chatInput) chatInput.value = ''; playButtonClickSound(); console.log("Chat message sent."); })
+                             .catch(error => { console.error("Error sending chat message:", error); alert("Kunne ikke sende melding."); });
+                     } else if (messageText && messageText.length > 280) { alert("Meldingen er for lang (maks 280 tegn).");
+                     } else { if (chatInput) chatInput.focus(); }
+                 });
+             } else { console.error("Chat Form element NOT FOUND when trying to add submit listener!"); }
+
+
+            console.log("Base event listeners setup attempt complete.");
+        }
+
+
+        // --- RUN ON LOAD ---
+        // Use DOMContentLoaded to ensure HTML is parsed before selecting elements and attaching listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("DOMContentLoaded event fired.");
+            // Utsett selve app-starten bittelitt:
+            setTimeout(initializeApp, 0);
+        });
+
+    </script>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<script>
+  // Firebase config
+  const firebaseConfig = {
+    apiKey: "AIzaSyDUC7mBCT4R_t3buPLDrDA-GQWGmYEyBnw",
+    authDomain: "gf4l-ca7e2.firebaseapp.com",
+    databaseURL: "https://gf4l-ca7e2-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "gf4l-ca7e2",
+    storageBucket: "gf4l-ca7e2.firebasestorage.app",
+    messagingSenderId: "893712610424",
+    appId: "1:893712610424:web:5b0db3683d1aff2667298d",
+    measurementId: "G-NHK1CH1DP6"
+  };
+
+// Init Firebase
+  firebase.initializeApp(firebaseConfig);
+
+  // Autentisering
+  firebase.auth().onAuthStateChanged(user => {
+    console.log("Bruker status:", user ? "Innlogget" : "Ikke innlogget");
+  });
+</script>
+
+<!-- Ekstern script -->
+<script src="script.js" defer></script>
+
+</body>
+</html>
