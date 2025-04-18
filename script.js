@@ -173,6 +173,8 @@ window.addEventListener("DOMContentLoaded", () => {
         <p>XP: ${xp}</p>
         <p>Nivå: ${levelNames[level] || "Ukjent"} (Level ${level})</p>
       `;
+
+      updateUserLevel(username, xp);
     });
   }
 
@@ -180,8 +182,9 @@ window.addEventListener("DOMContentLoaded", () => {
     return Math.min(Math.floor(xp / 10), levelNames.length - 1);
   }
 });
+
 function updateUserLevel(username, xp) {
-  const level = getLevelFromXP(xp);
+  const level = Math.min(Math.floor(xp / 10), levelNames.length - 1);
   const levelName = levelNames[level] || "Ukjent";
 
   firebase.database().ref("users/" + username).update({
