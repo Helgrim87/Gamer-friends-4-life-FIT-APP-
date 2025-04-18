@@ -1,36 +1,5 @@
 // === GF4L script.js ===
 
-// === START: Firebase SDK Dynamic Loading ===
-function loadFirebaseSDKs() {
-    return new Promise((resolve) => {
-        // Lag <script>-elementer for hver Firebase SDK du trenger
-        const appScript = document.createElement('script');
-        appScript.src = 'https://www.gstatic.com/firebasejs/9.x.x/firebase-app-compat.js';
-        appScript.defer = true;
-        document.head.appendChild(appScript);
-
-        const dbScript = document.createElement('script');
-        dbScript.src = 'https://www.gstatic.com/firebasejs/9.x.x/firebase-database-compat.js';
-        dbScript.defer = true;
-        document.head.appendChild(dbScript);
-
-        // Legg til event listeners for å sjekke når SKD-ene er lastet
-        let appLoaded = false;
-        let dbLoaded = false;
-
-        appScript.onload = () => {
-            appLoaded = true;
-            if (appLoaded && dbLoaded) resolve();
-        };
-
-        dbScript.onload = () => {
-            dbLoaded = true;
-            if (appLoaded && dbLoaded) resolve();
-        };
-    });
-}
-// === END: Firebase SDK Dynamic Loading ===
-
 const firebaseConfig = {
     apiKey: "AIzaSyDUC7mBCT4R_t3buPLDrDA-GQWGmYEyBnw",
     authDomain: "gf4l-ca7e2.firebaseapp.com",
@@ -148,68 +117,57 @@ const levelNames = [
 
 let currentUser = null;
 
-// === START: Your Existing Code Modification Point ===
 window.addEventListener("DOMContentLoaded", () => {
-    loadFirebaseSDKs().then(() => {
-        // Nå vet vi at Firebase SDK-ene er lastet, så initialiser Firebase og bruk det
-        firebase.initializeApp(firebaseConfig); // Forutsatt at firebaseConfig er definert i din eksisterende kode
-        const db = firebase.database();
+    // Firebase er nå garantert lastet (fordi vi inkluderer SDK-ene i HTML)
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-        // === START: Your Existing Code (Move Code That Uses Firebase Here) ===
-        // Flytt all din eksisterende kode som bruker firebase her inne i .then()
-        const userSelect = document.getElementById("user-select");
-        const loginBtn = document.getElementById("login-btn");
-        const status = document.getElementById("status");
+    const userSelect = document.getElementById("user-select");
+    const loginBtn = document.getElementById("login-btn");
+    const status = document.getElementById("status");
 
-        db.ref("users").once("value").then(snapshot => {
-            const users = snapshot.val();
-            for (let username in users) {
-                const option = document.createElement("option");
-                option.value = username;
-                option.textContent = username;
-                userSelect.appendChild(option);
-            }
-        });
-
-        loginBtn.addEventListener("click", () => {
-            const username = userSelect.value;
-            const pw = document.getElementById("password-input").value.trim(); // Korrigert ID
-            if (!username || username === "Velg bruker") return alert("Velg en bruker!");
-
-            if (pw.toLowerCase() !== username[0].toLowerCase()) {
-                return alert("Feil passord. Hint: Første bokstav i brukernavnet.");
-            }
-
-            currentUser = username;
-            loadUserData(username);
-        });
-
-        function loadUserData(username) {
-            db.ref("users/" + username).once("value").then(snap => {
-                const data = snap.val();
-                if (!data) return status.textContent = "Fant ikke brukerdata";
-
-                const xp = data.xp || 0;
-                const level = getLevelFromXP(xp);
-
-                status.innerHTML = `
-                    <h2>${username}</h2>
-                    <p>XP: ${xp}</p>
-                    <p>Nivå: ${levelNames[level] || "Ukjent"} (Level ${level})</p>
-                `;
-
-                updateUserLevel(username, xp);
-            });
+    db.ref("users").once("value").then(snapshot => {
+        const users = snapshot.val();
+        for (let username in users) {
+            const option = document.createElement("option");
+            option.value = username;
+            option.textContent = username;
+            userSelect.appendChild(option);
         }
-
-        function getLevelFromXP(xp) {
-            return Math.min(Math.floor(xp / 10), levelNames.length - 1);
-        }
-        // === END: Your Existing Code (Move Code That Uses Firebase Here) ===
-
-        // Resten av koden din som ikke er avhengig av Firebase kan være her
     });
-});
-// === END: Your Existing Code Modification Point ===
 
-// Resten av din eksisterende kode som ikke bruker Firebase kan være her
+    loginBtn.addEventListener("click", () => {
+        const username = userSelect.value;
+        const pw = document.getElementById("password-input").value.trim(); // Korrigert ID
+        if (!username || username === "Velg bruker") return alert("Velg en bruker!");
+
+        if (pw.toLowerCase() !== username[0].toLowerCase()) {
+            return alert("Feil passord. Hint: Første bokstav i brukernavnet.");
+        }
+
+        currentUser = username;
+        loadUserData(username);
+    });
+
+    function loadUserData(username) {
+        db.ref("users/" + username).once("value").then(snap => {
+            const data = snap.val();
+            if (!data) return status.textContent = "Fant ikke brukerdata";
+
+            const xp = data.xp || 0;
+            const level = getLevelFromXP(xp);
+
+            status.innerHTML = `
+                <h2>${username}</h2>
+                <p>XP: ${xp}</p>
+                <p>Nivå: ${levelNames[level] || "Ukjent"} (Level ${level})</p>
+            `;
+
+            updateUserLevel(username, xp);
+        });
+    }
+
+    function getLevelFromXP(xp) {
+        return Math.min(Math.floor(xp / 10), levelNames.length - 1);
+    }
+});
