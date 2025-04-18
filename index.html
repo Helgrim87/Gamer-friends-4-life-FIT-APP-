@@ -1294,9 +1294,10 @@
             console.log("DOMContentLoaded event fired.");
             // Utsett selve app-starten bittelitt:
             setTimeout(initializeApp, 0);
-        });
+        }); // <-- avslutter din DOMContentLoaded listener riktig
+</script> <!-- avslutter inline JS-blokk -->
 
-<!-- Ekstern script -->
+<!-- Ekstern script må stå etter at inline-scriptet er lukket -->
 <script src="script.js" defer></script>
 
 </body>
