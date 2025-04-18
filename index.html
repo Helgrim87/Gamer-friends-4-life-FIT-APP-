@@ -661,32 +661,6 @@
             setupBaseEventListeners(); // Call this last
         }
 
-        // Separate Firebase Initialization
-        function initializeFirebase() {
-            if (firebaseInitialized) { console.log("Firebase already initialized."); return; }
-            try {
-                console.log("Attempting to initialize Firebase connection...");
-                firebase.initializeApp(firebaseConfig);
-                console.log("Firebase app initialized successfully.");
-                db = firebase.database();
-                console.log("Firebase Realtime Database service obtained:", db ? 'OK' : 'FEILET');
-                usersRef = db.ref('users');
-                chatRef = db.ref('chatMessages'); // RE-ADDED chat reference
-                console.log("Firebase usersRef obtained:", usersRef ? 'OK' : 'FEILET');
-                console.log("Firebase chatRef obtained:", chatRef ? 'OK' : 'FEILET');
-                firebaseInitialized = true;
-                console.log("Firebase Initialized flag set to true.");
-                loadUsersFromFirebase();
-                initializeChat(); // RE-ADDED chat listener initialization
-            } catch (error) {
-                 console.error("Firebase Initialization Failed:", error);
-                 alert("Kunne ikke koble til Firebase! Prøver å laste lokale data som nødløsning.");
-                 firebaseInitialized = false;
-                 loadDefaultUsersLocally();
-                 processLoadedUsers();
-            }
-        }
-
         // --- DEMO MODE & COUNTDOWN (REMOVED/DISABLED) ---
         // function calculateTargetLaunchDate() {}
         // function initializeCountdown() {}
